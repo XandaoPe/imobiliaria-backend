@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Agendamento Confirmado</title>
+</head>
+
+<body>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd;">
+        <h2 style="color: #4CAF50;">✅ Agendamento Confirmado</h2>
+
+        <p>Prezado(a) <strong>{{clienteNome}}</strong>,</p>
+
+        <p>Temos o prazer de confirmar seu agendamento de visita para o imóvel:</p>
+
+        <h3 style="color: #333;">Detalhes da Visita:</h3>
+        <ul>
+            <li><strong>Imóvel:</strong> {{imovelTitulo}}</li>
+            <li><strong>Endereço:</strong> {{imovelEndereco}}</li>
+            <li><strong>Data/Hora:</strong> {{dataHora}}</li>
+            <li><strong>Corretor Responsável:</strong> {{corretorNome}} ({{corretorEmail}})</li>
+        </ul>
+
+        <p>Por favor, chegue no horário. Em caso de dúvidas, entre em contato.</p>
+
+        <p>Obrigado!</p>
+        <p style="margin-top: 30px; font-size: 0.9em; color: #777;">Equipe {{nomeEmpresa}}</p>
+    </div>
+</body>
+
+</html>

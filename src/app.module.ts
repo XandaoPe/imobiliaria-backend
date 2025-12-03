@@ -14,6 +14,7 @@ import { UploadModule } from './upload/upload.module';
 import { AgendamentoModule } from './agendamento/agendamento.module';
 import { ContratoModule } from './contrato/contrato.module';
 import { RelatoriosModule } from './relatorios/relatorios.module';
+import { NotificacaoModule } from './notificacao/notificacao.module';
 
 @Module({
   imports: [
@@ -39,7 +40,8 @@ import { RelatoriosModule } from './relatorios/relatorios.module';
     UploadModule,
     AgendamentoModule,
     ContratoModule,
-    RelatoriosModule, // Adiciona o módulo Empresa
+    RelatoriosModule,
+    NotificacaoModule, // Adiciona o módulo Empresa
   ],
   controllers: [AppController],
   providers: [AppService],
