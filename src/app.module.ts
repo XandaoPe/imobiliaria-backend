@@ -10,6 +10,7 @@ import { UsuarioModule } from './usuario/usuario.module';
 import { AuthModule } from './auth/auth.module';
 import { ClienteModule } from './cliente/cliente.module';
 import { ImovelModule } from './imovel/imovel.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -31,7 +32,8 @@ import { ImovelModule } from './imovel/imovel.module';
     UsuarioModule,
     AuthModule,
     ClienteModule,
-    ImovelModule, // Adiciona o módulo Empresa
+    ImovelModule,
+    UploadModule, // Adiciona o módulo Empresa
   ],
   controllers: [AppController],
   providers: [AppService],
