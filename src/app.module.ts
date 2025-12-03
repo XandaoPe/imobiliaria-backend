@@ -11,6 +11,8 @@ import { AuthModule } from './auth/auth.module';
 import { ClienteModule } from './cliente/cliente.module';
 import { ImovelModule } from './imovel/imovel.module';
 import { UploadModule } from './upload/upload.module';
+import { AgendamentoModule } from './agendamento/agendamento.module';
+import { ContratoModule } from './contrato/contrato.module';
 
 @Module({
   imports: [
@@ -33,7 +35,9 @@ import { UploadModule } from './upload/upload.module';
     AuthModule,
     ClienteModule,
     ImovelModule,
-    UploadModule, // Adiciona o módulo Empresa
+    UploadModule,
+    AgendamentoModule,
+    ContratoModule, // Adiciona o módulo Empresa
   ],
   controllers: [AppController],
   providers: [AppService],
