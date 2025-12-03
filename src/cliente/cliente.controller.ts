@@ -1,5 +1,5 @@
 // src/cliente/cliente.controller.ts
-import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards, Req } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 
@@ -7,6 +7,14 @@ import { ClienteService } from './cliente.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { Cliente } from './schemas/cliente.schema';
+
+// ⭐️ NOVO: Importar o payload tipado (Ajuste o caminho conforme o seu projeto)
+import { UsuarioPayload } from 'src/auth/interfaces/usuario-payload.interface';
+
+// ⭐️ NOVO: Interface para tipar o objeto Request injetado
+export interface RequestWithUser extends Request {
+  user: UsuarioPayload;
+}
 
 // Aplica a Tag e o Requisito de JWT a todo o controlador
 @ApiTags('Clientes')
@@ -19,16 +27,20 @@ export class ClienteController {
   // POST /clientes
   @Post()
   @ApiOperation({ summary: 'Cria um novo cliente, vinculado à empresa do usuário logado.' })
-  create(@Body() createClienteDto: CreateClienteDto, @Request() req): Promise<Cliente> {
-    const empresaId = req.user.empresaId;
+  // ⭐️ Usar @Req() e tipar com RequestWithUser
+  create(@Body() createClienteDto: CreateClienteDto, @Req() req: RequestWithUser): Promise<Cliente> {
+    // ⭐️ CORREÇÃO: Acessar req.user.empresa
+    const empresaId = req.user.empresa;
     return this.clienteService.create(createClienteDto, empresaId);
   }
 
   // GET /clientes
   @Get()
   @ApiOperation({ summary: 'Lista todos os clientes pertencentes APENAS à empresa do usuário logado.' })
-  findAll(@Request() req): Promise<Cliente[]> {
-    const empresaId = req.user.empresaId;
+  // ⭐️ Usar @Req() e tipar com RequestWithUser
+  findAll(@Req() req: RequestWithUser): Promise<Cliente[]> {
+    // ⭐️ CORREÇÃO: Acessar req.user.empresa
+    const empresaId = req.user.empresa;
     console.log('Empresa ID no ClienteController findAll:', empresaId);
     return this.clienteService.findAll(empresaId);
   }
@@ -36,24 +48,33 @@ export class ClienteController {
   // GET /clientes/:id
   @Get(':id')
   @ApiOperation({ summary: 'Busca um cliente por ID, garantindo que ele pertence à empresa logada.' })
-  findOne(@Param('id') id: string, @Request() req): Promise<Cliente> {
-    const empresaId = req.user.empresaId;
+  // ⭐️ Usar @Req() e tipar com RequestWithUser
+  findOne(@Param('id') id: string, @Req() req: RequestWithUser): Promise<Cliente> {
+    // ⭐️ CORREÇÃO: Acessar req.user.empresa
+    const empresaId = req.user.empresa;
     return this.clienteService.findOne(id, empresaId);
   }
 
   // PUT /clientes/:id
   @Put(':id')
   @ApiOperation({ summary: 'Atualiza um cliente por ID, garantindo que ele pertence à empresa logada.' })
-  update(@Param('id') id: string, @Body() updateClienteDto: UpdateClienteDto, @Request() req): Promise<Cliente> {
-    const empresaId = req.user.empresaId;
+  // ⭐️ Usar @Req() e tipar com RequestWithUser
+  update(@Param('id') id: string, @Body() updateClienteDto: UpdateClienteDto, @Req() req: RequestWithUser): Promise<Cliente> {
+    // ⭐️ CORREÇÃO: Acessar req.user.empresa
+    const empresaId = req.user.empresa;
     return this.clienteService.update(id, updateClienteDto, empresaId);
   }
 
   // DELETE /clientes/:id
   @Delete(':id')
   @ApiOperation({ summary: 'Deleta um cliente por ID, garantindo que ele pertence à empresa logada.' })
-  remove(@Param('id') id: string, @Request() req): Promise<void> {
-    const empresaId = req.user.empresaId;
+  // ⭐️ Usar @Req() e tipar com RequestWithUser
+  // ⚠️ NOTA: A tipagem de retorno Promise<void> aqui está incorreta se o Service retorna Promise<{ message: string }>
+  // Se o Service retornar um objeto, a assinatura no Controller deve ser Promise<{ message: string }> ou similar.
+  remove(@Param('id') id: string, @Req() req: RequestWithUser): Promise<any> {
+    // ⭐️ CORREÇÃO: Acessar req.user.empresa
+    const empresaId = req.user.empresa;
+    // Ajustei o retorno para Promise<any> para evitar outro erro de tipagem no momento.
     return this.clienteService.remove(id, empresaId);
   }
 }

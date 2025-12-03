@@ -4,14 +4,17 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ImovelService } from './imovel.service';
 import { ImovelController } from './imovel.controller';
 import { Imovel, ImovelSchema } from './schemas/imovel.schema';
-import { AuthModule } from '../auth/auth.module'; // Necessário para proteger rotas
+import { AuthModule } from 'src/auth/auth.module';
+import { UploadModule } from 'src/upload/upload.module'; // ⭐️ NOVO IMPORT
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Imovel.name, schema: ImovelSchema }]),
-    AuthModule, // Importa o módulo de autenticação para usar os Guards e o token
+    AuthModule,
+    UploadModule // ⭐️ Adicionado para permitir o uso do FileInterceptor
   ],
   controllers: [ImovelController],
   providers: [ImovelService],
+  exports: [ImovelService]
 })
 export class ImovelModule { }

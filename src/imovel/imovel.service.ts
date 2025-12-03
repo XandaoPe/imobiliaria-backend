@@ -64,14 +64,59 @@ export class ImovelService {
     }
 
     // 5. REMOÇÃO: Filtra por ID do Imóvel E ID da Empresa
-    async remove(imovelId: string, empresaId: string): Promise<void> {
+    async remove(imovelId: string, empresaId: string): Promise<{ message: string }> {
+        // A função findOneAndUpdate retorna o documento, usamos deleteOne para remoção.
         const result = await this.imovelModel.deleteOne({
             _id: imovelId,
-            empresa: empresaId // ⭐️ Filtro de remoção + Multitenancy
-        }).exec();
+            empresa: new Types.ObjectId(empresaId)
+        }).exec(); // Certifique-se de chamar .exec() se estiver usando promises
 
+        // Verifica se a exclusão foi bem-sucedida (se o item existia e foi deletado)
         if (result.deletedCount === 0) {
             throw new NotFoundException(`Imóvel com ID "${imovelId}" não encontrado ou não pertence a esta empresa.`);
         }
+
+        // ⭐️ CORREÇÃO: RETORNAR EXPLICITAMENTE O TIPO ESPERADO
+        return { message: `Imóvel com ID "${imovelId}" removido com sucesso.` };
+    }
+
+    // ====================================================================
+    // ⭐️ NOVO: Adicionar Foto
+    // ====================================================================
+    async addPhoto(imovelId: string, empresaId: string, filename: string): Promise<Imovel> {
+        const imovel = await this.imovelModel.findOneAndUpdate(
+            {
+                _id: imovelId,
+                // 🔑 Multitenancy
+                empresa: new Types.ObjectId(empresaId)
+            },
+            { $push: { fotos: filename } }, // Adiciona o nome do arquivo ao array
+            { new: true } // Retorna o documento atualizado
+        ).exec();
+
+        if (!imovel) {
+            throw new NotFoundException(`Imóvel com ID "${imovelId}" não encontrado ou não pertence a esta empresa.`);
+        }
+        return imovel;
+    }
+
+    // ====================================================================
+    // ⭐️ NOVO: Remover Foto
+    // ====================================================================
+    async removePhoto(imovelId: string, empresaId: string, filename: string): Promise<Imovel> {
+        const imovel = await this.imovelModel.findOneAndUpdate(
+            {
+                _id: imovelId,
+                // 🔑 Multitenancy
+                empresa: new Types.ObjectId(empresaId)
+            },
+            { $pull: { fotos: filename } }, // Remove o nome do arquivo do array
+            { new: true }
+        ).exec();
+
+        if (!imovel) {
+            throw new NotFoundException(`Imóvel com ID "${imovelId}" não encontrado ou não pertence a esta empresa.`);
+        }
+        return imovel;
     }
 }

@@ -9,7 +9,7 @@ import { ContratoService } from './contrato.service';
 import { CreateContratoDto } from './dto/create-contrato.dto';
 import { UpdateContratoDto } from './dto/update-contrato.dto';
 import { Contrato } from './schemas/contrato.schema';
-import { UsuarioPayload } from 'src/auth/jwt.strategy';
+import { UsuarioPayload } from 'src/auth/interfaces/usuario-payload.interface';
 
 export interface RequestWithUser extends Request {
   user: UsuarioPayload;

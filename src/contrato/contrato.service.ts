@@ -8,7 +8,7 @@ import { UpdateContratoDto } from './dto/update-contrato.dto';
 
 import { ImovelService } from 'src/imovel/imovel.service';
 import { ClienteService } from 'src/cliente/cliente.service';
-import { UsuarioPayload } from 'src/auth/jwt.strategy';
+import { UsuarioPayload } from 'src/auth/interfaces/usuario-payload.interface';
 
 @Injectable()
 export class ContratoService {

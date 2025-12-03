@@ -1,11 +1,10 @@
 // src/imovel/schemas/imovel.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { Empresa } from '../../empresa/schemas/empresa.schema';
+import { Empresa } from 'src/empresa/schemas/empresa.schema';
 
 export type ImovelDocument = Imovel & Document;
 
-// Simples Enum para Tipo de Imóvel
 export enum TipoImovel {
     CASA = 'CASA',
     APARTAMENTO = 'APARTAMENTO',
@@ -18,25 +17,23 @@ export class Imovel {
     @Prop({ required: true })
     titulo: string;
 
-    @Prop({
-        required: true,
-        enum: TipoImovel,
-
-        set: (v: string) => v.toUpperCase()
-    })
+    @Prop({ required: true, enum: TipoImovel, set: (v: string) => v.toUpperCase() })
     tipo: TipoImovel;
 
     @Prop({ required: true })
-    endereco: string; 
+    endereco: string;
 
-    @Prop({ type: Number, required: true })
+    @Prop({ required: true })
     valor: number;
 
     @Prop({ default: false })
     disponivel: boolean;
 
-    // 🔑 CHAVE DO MULTITENANCY: Vincula o imóvel a uma empresa
-    @Prop({ type: Types.ObjectId, ref: 'Empresa', required: true })
+    // ⭐️ NOVO: Array para armazenar os nomes/caminhos dos arquivos de fotos
+    @Prop({ type: [String], default: [] })
+    fotos: string[];
+
+    @Prop({ type: Types.ObjectId, ref: Empresa.name, required: true })
     empresa: Types.ObjectId;
 }
 
