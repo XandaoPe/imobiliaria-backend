@@ -21,7 +21,7 @@ export class Imovel {
     @Prop({
         required: true,
         enum: TipoImovel,
-        // ⭐️ CORREÇÃO: Adicionar a função SET para garantir UPPERCASE
+
         set: (v: string) => v.toUpperCase()
     })
     tipo: TipoImovel;
