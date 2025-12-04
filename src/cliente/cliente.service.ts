@@ -59,9 +59,13 @@ export class ClienteService {
 
     // 4. ATUALIZAÇÃO: Filtra por ID do Cliente E ID da Empresa
     async update(clienteId: string, updateClienteDto: UpdateClienteDto, empresaId: string): Promise<Cliente> {
+
         const updatedCliente = await this.clienteModel
             .findOneAndUpdate(
-                { _id: clienteId, empresa: empresaId },
+                {
+                    _id: clienteId,
+                    empresa: new Types.ObjectId(empresaId)
+                },
                 updateClienteDto,
                 { new: true },
             )
@@ -77,7 +81,7 @@ export class ClienteService {
     async remove(clienteId: string, empresaId: string): Promise<void> {
         const result = await this.clienteModel.deleteOne({
             _id: clienteId,
-            empresa: empresaId
+            empresa: new Types.ObjectId(empresaId)
         }).exec();
 
         if (result.deletedCount === 0) {

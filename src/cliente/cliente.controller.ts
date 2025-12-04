@@ -41,7 +41,6 @@ export class ClienteController {
   findAll(@Req() req: RequestWithUser): Promise<Cliente[]> {
     // ⭐️ CORREÇÃO: Acessar req.user.empresa
     const empresaId = req.user.empresa;
-    console.log('Empresa ID no ClienteController findAll:', empresaId);
     return this.clienteService.findAll(empresaId);
   }
 
