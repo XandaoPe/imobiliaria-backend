@@ -7,6 +7,13 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  app.enableCors({
+    // ⭐️ 2. DEFINIR A ORIGEM DO SEU FRONTEND (React)
+    origin: 'http://localhost:3000', 
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Tipos de métodos permitidos
+    credentials: true, // Permitir o envio de cookies de autenticação (se usados)
+  });
+  
   // 1. Configuração Global (Validation Pipe)
   // Certifique-se de que os DTOs com class-validator funcionem corretamente
   app.useGlobalPipes(new ValidationPipe()); // Importe o ValidationPipe, se ainda não o fez.

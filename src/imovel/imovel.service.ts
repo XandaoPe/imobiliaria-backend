@@ -47,11 +47,14 @@ export class ImovelService {
         return imovel;
     }
 
-    // 4. ATUALIZAÇÃO: Filtra por ID do Imóvel E ID da Empresa
     async update(imovelId: string, updateImovelDto: UpdateImovelDto, empresaId: string): Promise<Imovel> {
         const updatedImovel = await this.imovelModel
             .findOneAndUpdate(
-                { _id: imovelId, empresa: empresaId }, // ⭐️ Filtro de busca + Multitenancy
+                {
+                    _id: imovelId,
+                    // 🔑 CORREÇÃO APLICADA: Converte a string do token para ObjectId
+                    empresa: new Types.ObjectId(empresaId)
+                },
                 updateImovelDto,
                 { new: true },
             )
@@ -63,20 +66,19 @@ export class ImovelService {
         return updatedImovel;
     }
 
-    // 5. REMOÇÃO: Filtra por ID do Imóvel E ID da Empresa
     async remove(imovelId: string, empresaId: string): Promise<{ message: string }> {
-        // A função findOneAndUpdate retorna o documento, usamos deleteOne para remoção.
         const result = await this.imovelModel.deleteOne({
-            _id: imovelId,
+            // 🔑 CORREÇÃO: Converter explicitamente o imovelId
+            _id: new Types.ObjectId(imovelId),
+            // 🔑 CORREÇÃO: Converter explicitamente o empresaId
             empresa: new Types.ObjectId(empresaId)
-        }).exec(); // Certifique-se de chamar .exec() se estiver usando promises
+        }).exec();
 
         // Verifica se a exclusão foi bem-sucedida (se o item existia e foi deletado)
         if (result.deletedCount === 0) {
             throw new NotFoundException(`Imóvel com ID "${imovelId}" não encontrado ou não pertence a esta empresa.`);
         }
 
-        // ⭐️ CORREÇÃO: RETORNAR EXPLICITAMENTE O TIPO ESPERADO
         return { message: `Imóvel com ID "${imovelId}" removido com sucesso.` };
     }
 
