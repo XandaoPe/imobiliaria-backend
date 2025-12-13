@@ -1,5 +1,5 @@
 // src/cliente/cliente.controller.ts
-import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards, Req, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 
@@ -36,12 +36,12 @@ export class ClienteController {
 
   // GET /clientes
   @Get()
-  @ApiOperation({ summary: 'Lista todos os clientes pertencentes APENAS à empresa do usuário logado.' })
-  // ⭐️ Usar @Req() e tipar com RequestWithUser
-  findAll(@Req() req: RequestWithUser): Promise<Cliente[]> {
-    // ⭐️ CORREÇÃO: Acessar req.user.empresa
+  @ApiOperation({ summary: 'Lista todos os clientes pertencentes APENAS à empresa do usuário logado, com opção de busca por texto em todos os campos.' })
+  // ⭐️ NOVO: Usar @Query('search') search?: string
+  findAll(@Req() req: RequestWithUser, @Query('search') search?: string): Promise<Cliente[]> {
     const empresaId = req.user.empresa;
-    return this.clienteService.findAll(empresaId);
+    // ⭐️ Passar o termo de busca (opcional) para o Service
+    return this.clienteService.findAll(empresaId, search);
   }
 
   // GET /clientes/:id

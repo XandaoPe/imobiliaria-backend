@@ -1,7 +1,7 @@
 // src/cliente/cliente.service.ts
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { FilterQuery, Model, Types } from 'mongoose';
 import { Cliente, ClienteDocument } from './schemas/cliente.schema';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
@@ -34,11 +34,33 @@ export class ClienteService {
         }
     }
 
-    async findAll(empresaId: string): Promise<Cliente[]> {
-        return this.clienteModel.find({
-            // ⭐️ CORREÇÃO: Converte a string do token para ObjectId
+    async findAll(empresaId: string, search?: string): Promise<Cliente[]> {
+        // Filtro base: SEMPRE buscar apenas os clientes da empresa logada
+        const filter: FilterQuery<ClienteDocument> = {
             empresa: new Types.ObjectId(empresaId)
-        }).exec();
+        };
+
+        // Se houver termo de busca, adiciona a lógica de busca full-text nos campos relevantes
+        if (search) {
+            // Cria uma expressão regular que ignora maiúsculas/minúsculas
+            const regex = new RegExp(search, 'i');
+
+            // Usa $or para procurar o termo de busca em qualquer um dos campos
+            filter.$or = [
+                { nome: { $regex: regex } },
+                { cpf: { $regex: regex } },
+                { email: { $regex: regex } },
+                { telefone: { $regex: regex } },
+                { status: { $regex: regex } },
+                { perfil: { $regex: regex } },
+                { observacoes: { $regex: regex } },
+            ];
+        }
+
+        // Executa a busca com o filtro combinado (empresaId E (campos com search))
+        return this.clienteModel
+            .find(filter)
+            .exec();
     }
 
     // 3. BUSCA ÚNICA: Filtra por ID do Cliente E ID da Empresa
