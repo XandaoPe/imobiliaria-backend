@@ -1,4 +1,3 @@
-// src/imovel/schemas/imovel.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { Empresa } from 'src/empresa/schemas/empresa.schema';
@@ -26,10 +25,39 @@ export class Imovel {
     @Prop({ required: true })
     valor: number;
 
+    // === CAMPOS OBRIGATÓRIOS DO PASSO 1 ===
     @Prop({ default: false })
     disponivel: boolean;
 
-    // ⭐️ NOVO: Array para armazenar os nomes/caminhos dos arquivos de fotos
+    // === CAMPOS OPCIONAIS DO PASSO 2 (CORREÇÃO APLICADA) ===
+
+    // String opcional
+    @Prop({ required: false, default: null })
+    cidade?: string;
+
+    // String opcional (descrição)
+    @Prop({ required: false, default: null })
+    descricao?: string;
+
+    // String opcional (detalhes)
+    @Prop({ required: false, default: null })
+    detalhes?: string;
+
+    // Número inteiro opcional (Quartos)
+    // O Mongoose infere o tipo Number (padrão Mongoose)
+    @Prop({ required: false, default: null })
+    quartos?: number;
+
+    // Número inteiro opcional (Banheiros)
+    @Prop({ required: false, default: null })
+    banheiros?: number;
+
+    // Booleano opcional (Garagem)
+    @Prop({ default: false }) // Booleans geralmente têm um default
+    garagem: boolean;
+
+    // === CAMPOS DE RELACIONAMENTO/SISTEMA ===
+
     @Prop({ type: [String], default: [] })
     fotos: string[];
 

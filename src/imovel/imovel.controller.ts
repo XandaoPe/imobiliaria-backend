@@ -1,4 +1,3 @@
-// src/imovel/imovel.controller.ts
 import {
   Controller, Post, Get, Put, Delete, Body, Param, UseGuards, Req,
   UseInterceptors, UploadedFile, HttpException, HttpStatus,
@@ -21,7 +20,6 @@ export interface RequestWithUser extends Request {
   user: UsuarioPayload;
 }
 
-// ⭐️ CORREÇÃO: DEFINIÇÃO DA CONSTANTE (e correção ortográfica para 'ACCESS')
 const ROLES_ACCESS = [PerfisEnum.CORRETOR, PerfisEnum.GERENTE, PerfisEnum.ADM_GERAL];
 
 @ApiTags('Imóveis')
@@ -31,37 +29,32 @@ const ROLES_ACCESS = [PerfisEnum.CORRETOR, PerfisEnum.GERENTE, PerfisEnum.ADM_GE
 export class ImovelController {
   constructor(private readonly imovelService: ImovelService) { }
 
-  // ⭐️ CREATE (Exemplo de uso da constante)
   @Post()
-  @Roles(...ROLES_ACCESS) // ⭐️ Usando a constante corrigida
+  @Roles(...ROLES_ACCESS)
   @ApiOperation({ summary: 'Cria um novo imóvel (Multitenancy).' })
   create(@Body() createImovelDto: CreateImovelDto, @Req() req: RequestWithUser): Promise<Imovel> {
     return this.imovelService.create(createImovelDto, req.user.empresa);
   }
 
-  // ⭐️ FIND ALL
   @Get()
   @Roles(...ROLES_ACCESS)
   @ApiOperation({ summary: 'Lista todos os imóveis da empresa (com busca opcional).' })
   findAll(
     @Req() req: RequestWithUser,
-    @Query('search') search?: string, // ⭐️ NOVO: Captura o parâmetro 'search' da URL
+    @Query('search') search?: string,
   ): Promise<Imovel[]> {
-    // Passa o ID da empresa E o termo de busca para o Service
     return this.imovelService.findAll(req.user.empresa, search);
   }
 
-  // ⭐️ FIND ONE
   @Get(':id')
-  @Roles(...ROLES_ACCESS) // ⭐️ Usando a constante corrigida
+  @Roles(...ROLES_ACCESS)
   @ApiOperation({ summary: 'Busca um imóvel por ID (Multitenancy).' })
   findOne(@Param('id') id: string, @Req() req: RequestWithUser): Promise<Imovel> {
     return this.imovelService.findOne(id, req.user.empresa);
   }
 
-  // ⭐️ UPDATE
   @Put(':id')
-  @Roles(...ROLES_ACCESS) // ⭐️ Usando a constante corrigida
+  @Roles(...ROLES_ACCESS)
   @ApiOperation({ summary: 'Atualiza um imóvel por ID (Multitenancy).' })
   update(
     @Param('id') id: string,
@@ -71,9 +64,8 @@ export class ImovelController {
     return this.imovelService.update(id, updateImovelDto, req.user.empresa);
   }
 
-  // ⭐️ DELETE
   @Delete(':id')
-  @Roles(PerfisEnum.GERENTE, PerfisEnum.ADM_GERAL) // Perfis superiores
+  @Roles(PerfisEnum.GERENTE, PerfisEnum.ADM_GERAL)
   @ApiOperation({ summary: 'Remove um imóvel por ID (Apenas Gerente/ADM).' })
   remove(@Param('id') id: string, @Req() req: RequestWithUser): Promise<{ message: string }> {
     return this.imovelService.remove(id, req.user.empresa);
@@ -81,10 +73,10 @@ export class ImovelController {
 
 
   // ====================================================================
-  // ⭐️ ROTA DE UPLOAD DE FOTO
+  // ROTA DE UPLOAD DE FOTO
   // ====================================================================
   @Post(':id/upload-foto')
-  @Roles(...ROLES_ACCESS) // ⭐️ Usando a constante corrigida
+  @Roles(...ROLES_ACCESS)
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Faz upload de uma foto e associa ao Imóvel (Multitenancy).' })
   @ApiConsumes('multipart/form-data')
@@ -115,10 +107,10 @@ export class ImovelController {
   }
 
   // ====================================================================
-  // ⭐️ ROTA DE REMOÇÃO DE FOTO
+  // ROTA DE REMOÇÃO DE FOTO
   // ====================================================================
   @Delete(':id/foto/:filename')
-  @Roles(PerfisEnum.GERENTE, PerfisEnum.ADM_GERAL) // Perfis superiores
+  @Roles(PerfisEnum.GERENTE, PerfisEnum.ADM_GERAL)
   @ApiOperation({ summary: 'Remove uma foto do array do Imóvel.' })
   async deletePhoto(
     @Param('id') imovelId: string,
