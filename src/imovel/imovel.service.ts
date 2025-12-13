@@ -23,11 +23,23 @@ export class ImovelService {
         return createdImovel.save();
     }
 
-    async findAll(empresaId: string): Promise<Imovel[]> {
-        return this.imovelModel.find({
-            // ⭐️ CORREÇÃO: Converte a string do token para ObjectId
-            empresa: new Types.ObjectId(empresaId)
-        }).exec();
+    async findAll(empresaId: string, search?: string): Promise<Imovel[]> {
+        // Filtro base: sempre filtrar por empresa
+        const filter: any = { empresa: new Types.ObjectId(empresaId) };
+
+        // Se houver um termo de busca, adicionamos a lógica OR
+        if (search) {
+            const regex = new RegExp(search, 'i'); // Case-insensitive
+
+            // Aplica a busca em múltiplos campos (título, endereço, descrição)
+            filter.$or = [
+                { titulo: { $regex: regex } },
+                { endereco: { $regex: regex } },
+                { descricao: { $regex: regex } },
+            ];
+        }
+
+        return this.imovelModel.find(filter).exec(); // Aplica o filtro
     }
 
     // 3. BUSCA ÚNICA: Filtra por ID do Imóvel E ID da Empresa

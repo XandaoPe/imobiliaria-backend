@@ -1,7 +1,8 @@
 // src/imovel/imovel.controller.ts
 import {
   Controller, Post, Get, Put, Delete, Body, Param, UseGuards, Req,
-  UseInterceptors, UploadedFile, HttpException, HttpStatus
+  UseInterceptors, UploadedFile, HttpException, HttpStatus,
+  Query
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
@@ -40,10 +41,14 @@ export class ImovelController {
 
   // ⭐️ FIND ALL
   @Get()
-  @Roles(...ROLES_ACCESS) // ⭐️ Usando a constante corrigida
-  @ApiOperation({ summary: 'Lista todos os imóveis da empresa.' })
-  findAll(@Req() req: RequestWithUser): Promise<Imovel[]> {
-    return this.imovelService.findAll(req.user.empresa);
+  @Roles(...ROLES_ACCESS)
+  @ApiOperation({ summary: 'Lista todos os imóveis da empresa (com busca opcional).' })
+  findAll(
+    @Req() req: RequestWithUser,
+    @Query('search') search?: string, // ⭐️ NOVO: Captura o parâmetro 'search' da URL
+  ): Promise<Imovel[]> {
+    // Passa o ID da empresa E o termo de busca para o Service
+    return this.imovelService.findAll(req.user.empresa, search);
   }
 
   // ⭐️ FIND ONE
