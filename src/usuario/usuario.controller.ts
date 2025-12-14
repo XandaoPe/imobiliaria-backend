@@ -52,7 +52,6 @@ export class UsuarioController {
     @Query('ativo') ativo?: string,
   ): Promise<Usuario[]> {
     const empresaId = req.user.empresa;
-    console.log("req...", this.usuarioService.findAll)
     return this.usuarioService.findAll(empresaId, search, perfil, ativo);
   }
 

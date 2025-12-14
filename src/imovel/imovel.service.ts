@@ -13,7 +13,6 @@ export class ImovelService {
 
     // 1. CRIAÇÃO: Adiciona o empresaId do token
     async create(createImovelDto: CreateImovelDto, empresaId: string): Promise<Imovel> {
-        console.log('Payload recebido pelo Service (CREATE):', createImovelDto);
 
         const createdImovel = new this.imovelModel({
             ...createImovelDto,
@@ -68,7 +67,6 @@ export class ImovelService {
     }
 
     async update(imovelId: string, updateImovelDto: UpdateImovelDto, empresaId: string): Promise<Imovel> {
-        console.log('Payload recebido pelo Service (UPDATE):', updateImovelDto);
 
         const updatedImovel = await this.imovelModel
             .findOneAndUpdate(

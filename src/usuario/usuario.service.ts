@@ -52,7 +52,6 @@ export class UsuarioService {
     perfil?: PerfisEnum,
     ativo?: string // ⭐️ NOVO PARÂMETRO: Recebe 'true', 'false' ou undefined/null do controller
   ): Promise<Usuario[]> {
-    console.log('usuario.service findAll empresaId:', empresaId, 'search:', search, 'perfil:', perfil, 'ativo:', ativo);
 
     const filter: FilterQuery<UsuarioDocument> = {
       empresa: empresaId // Usa a string do ID da empresa (Correção anterior)
