@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, Types, FilterQuery } from 'mongoose';
 import { Imovel, ImovelDocument } from './schemas/imovel.schema';
 import { CreateImovelDto } from './dto/create-imovel.dto';
 import { UpdateImovelDto } from './dto/update-imovel.dto';
@@ -13,7 +13,6 @@ export class ImovelService {
 
     // 1. CRIAÇÃO: Adiciona o empresaId do token
     async create(createImovelDto: CreateImovelDto, empresaId: string): Promise<Imovel> {
-        // ⭐️ LOG DE DEBUG: VERIFIQUE NO SEU TERMINAL SE TODOS OS CAMPOS ESTÃO AQUI
         console.log('Payload recebido pelo Service (CREATE):', createImovelDto);
 
         const createdImovel = new this.imovelModel({
@@ -24,19 +23,32 @@ export class ImovelService {
         return createdImovel.save();
     }
 
-    async findAll(empresaId: string, search?: string): Promise<Imovel[]> {
-        const filter: any = { empresa: new Types.ObjectId(empresaId) };
+    // 2. BUSCA GERAL: Adiciona filtro de status (disponível/indisponível)
+    async findAll(empresaId: string, search?: string, status?: string): Promise<Imovel[]> { // <-- ATUALIZADO
+        const filter: FilterQuery<ImovelDocument> = { empresa: new Types.ObjectId(empresaId) };
+
+        // ⭐️ NOVO: Lógica para filtrar por Status
+        if (status) {
+            if (status.toUpperCase() === 'DISPONIVEL') {
+                filter.disponivel = true;
+            } else if (status.toUpperCase() === 'INDISPONIVEL') {
+                filter.disponivel = false;
+            }
+        }
 
         if (search) {
             const regex = new RegExp(search, 'i');
 
+            // Os campos do $or combinam com os campos buscáveis do frontend
             filter.$or = [
                 { titulo: { $regex: regex } },
                 { endereco: { $regex: regex } },
                 { descricao: { $regex: regex } },
+                // Adicione outros campos, se necessário
             ];
         }
 
+        // Executa a busca com o filtro combinado (empresaId E (disponivel Opcional) E ($or Opcional))
         return this.imovelModel.find(filter).exec();
     }
 
@@ -56,7 +68,6 @@ export class ImovelService {
     }
 
     async update(imovelId: string, updateImovelDto: UpdateImovelDto, empresaId: string): Promise<Imovel> {
-        // ⭐️ LOG DE DEBUG: VERIFIQUE NO SEU TERMINAL SE TODOS OS CAMPOS ESTÃO AQUI
         console.log('Payload recebido pelo Service (UPDATE):', updateImovelDto);
 
         const updatedImovel = await this.imovelModel

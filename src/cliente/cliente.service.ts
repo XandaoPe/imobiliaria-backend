@@ -34,30 +34,38 @@ export class ClienteService {
         }
     }
 
-    async findAll(empresaId: string, search?: string): Promise<Cliente[]> {
+    async findAll(empresaId: string, search?: string, status?: string): Promise<Cliente[]> {
         // Filtro base: SEMPRE buscar apenas os clientes da empresa logada
         const filter: FilterQuery<ClienteDocument> = {
             empresa: new Types.ObjectId(empresaId)
         };
 
+        // ⭐️ NOVO: Lógica para filtrar por Status
+        if (status && (status === 'ATIVO' || status === 'INATIVO')) {
+            filter.status = status;
+        }
+
         // Se houver termo de busca, adiciona a lógica de busca full-text nos campos relevantes
         if (search) {
-            // Cria uma expressão regular que ignora maiúsculas/minúsculas
             const regex = new RegExp(search, 'i');
 
             // Usa $or para procurar o termo de busca em qualquer um dos campos
+            // Este filtro será combinado com o filtro de empresa E o filtro de status (se existir)
             filter.$or = [
                 { nome: { $regex: regex } },
                 { cpf: { $regex: regex } },
                 { email: { $regex: regex } },
                 { telefone: { $regex: regex } },
+                // ⚠️ Se o status for 'ATIVO' ou 'INATIVO', evitamos buscar termos como 'ativo' no campo status aqui,
+                // já que o filtro de cima já cuidará disso de forma exata.
+                // Mas mantemos a busca por segurança.
                 { status: { $regex: regex } },
                 { perfil: { $regex: regex } },
                 { observacoes: { $regex: regex } },
             ];
         }
 
-        // Executa a busca com o filtro combinado (empresaId E (campos com search))
+        // Executa a busca com o filtro combinado (empresaId E (status Opcional) E (campos com search Opcional))
         return this.clienteModel
             .find(filter)
             .exec();

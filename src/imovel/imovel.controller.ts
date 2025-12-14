@@ -6,6 +6,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+
 import { ImovelService } from './imovel.service';
 import { Imovel } from './schemas/imovel.schema';
 import { CreateImovelDto } from './dto/create-imovel.dto';
@@ -38,12 +39,15 @@ export class ImovelController {
 
   @Get()
   @Roles(...ROLES_ACCESS)
-  @ApiOperation({ summary: 'Lista todos os imóveis da empresa (com busca opcional).' })
+  @ApiOperation({ summary: 'Lista todos os imóveis da empresa (com busca opcional e filtro de status).' })
+  // ⭐️ ATUALIZADO: Adicionar o parâmetro de status
   findAll(
     @Req() req: RequestWithUser,
     @Query('search') search?: string,
+    @Query('status') status?: string, // <-- NOVO: status será 'DISPONIVEL' ou 'INDISPONIVEL'
   ): Promise<Imovel[]> {
-    return this.imovelService.findAll(req.user.empresa, search);
+    // ⭐️ Passa o status para o Service
+    return this.imovelService.findAll(req.user.empresa, search, status);
   }
 
   @Get(':id')

@@ -38,10 +38,14 @@ export class ClienteController {
   @Get()
   @ApiOperation({ summary: 'Lista todos os clientes pertencentes APENAS à empresa do usuário logado, com opção de busca por texto em todos os campos.' })
   // ⭐️ NOVO: Usar @Query('search') search?: string
-  findAll(@Req() req: RequestWithUser, @Query('search') search?: string): Promise<Cliente[]> {
+  findAll(
+    @Req() req: RequestWithUser,
+    @Query('search') search?: string,
+    @Query('status') status?: string // <-- ADICIONADO AQUI
+  ): Promise<Cliente[]> {
     const empresaId = req.user.empresa;
-    // ⭐️ Passar o termo de busca (opcional) para o Service
-    return this.clienteService.findAll(empresaId, search);
+    // ⭐️ Passar o status (opcional) para o Service
+    return this.clienteService.findAll(empresaId, search, status);
   }
 
   // GET /clientes/:id
