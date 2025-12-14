@@ -28,6 +28,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         // ⭐️ Ajuste: O nome 'empresaId' no token deve ser mapeado para 'empresa'
         return {
             userId: payload.sub,
+            nome: payload.nome,
             email: payload.email,
             perfil: payload.perfil,
             // ⭐️ Se o token tiver 'empresaId', mapeamos para 'empresa'

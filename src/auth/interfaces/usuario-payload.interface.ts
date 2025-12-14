@@ -12,6 +12,7 @@ import { PerfisEnum } from 'src/usuario/schemas/usuario.schema'; // Importe o En
  */
 export interface UsuarioPayload {
     userId: string;
+    nome: string;
     email: string;
     // ⭐️ Usando o PerfisEnum
     perfil: PerfisEnum;

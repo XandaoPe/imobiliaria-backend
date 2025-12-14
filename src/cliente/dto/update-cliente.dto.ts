@@ -1,4 +1,4 @@
-// src/cliente/dto/update-cliente.dto.ts
+// src/cliente/dto/update-cliente.dto.ts (Não precisa de alteração se CreateClienteDto foi corrigido)
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateClienteDto } from './create-cliente.dto';
 

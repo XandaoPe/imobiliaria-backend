@@ -28,6 +28,7 @@ export class AuthService {
     // 2. Gera o Token JWT após a validação bem-sucedida
     async login(usuario: any) {
         const payload = {
+            nome: usuario.nome,
             email: usuario.email,
             sub: usuario._id,
             perfil: usuario.perfil,

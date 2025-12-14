@@ -1,5 +1,5 @@
 // src/cliente/dto/create-cliente.dto.ts
-import { IsString, IsNotEmpty, IsEmail, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsEmail, IsOptional, IsIn } from 'class-validator';
 
 export class CreateClienteDto {
     @IsString()
@@ -18,5 +18,19 @@ export class CreateClienteDto {
     @IsNotEmpty()
     email: string;
 
-    // O empresaId será injetado do Token, assim como no Imóvel.
+    // ⭐️ CORREÇÃO 4: Adicionar Status (opcional, com padrão no Schema)
+    @IsString()
+    @IsOptional()
+    @IsIn(['ATIVO', 'INATIVO'])
+    status?: string;
+
+    // ⭐️ CORREÇÃO 5: Adicionar Perfil (opcional)
+    @IsString()
+    @IsOptional()
+    perfil?: string;
+
+    // ⭐️ CORREÇÃO 6: Adicionar Observações (opcional)
+    @IsString()
+    @IsOptional()
+    observacoes?: string;
 }
