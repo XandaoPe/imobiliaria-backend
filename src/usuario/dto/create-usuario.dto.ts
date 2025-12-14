@@ -16,9 +16,9 @@ export class CreateUsuarioDto {
     nome: string;
 
     // 🔑 ID da Empresa a qual o usuário pertence (Obrigatório na criação)
-    @IsString()
-    @IsNotEmpty()
-    empresaId: string;
+    // @IsString()
+    // @IsNotEmpty()
+    // empresaId: string;
 
     @IsEnum(PerfisEnum, { message: 'O perfil deve ser um valor válido: ADM_GERAL, GERENTE, CORRETOR ou SUPORTE' })
     @IsOptional()

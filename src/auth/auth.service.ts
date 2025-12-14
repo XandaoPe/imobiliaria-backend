@@ -14,7 +14,7 @@ export class AuthService {
     // 1. Valida o Usuário (Busca + Comparação da Senha)
     async validateUser(email: string, senha: string, empresaId?: string): Promise<any> {
         // ⭐️ Busca por email E ID da Empresa (Multitenancy)
-        const usuario = await this.usuarioService.findOneByEmailAndEmpresa(email, empresaId);
+        const usuario = await this.usuarioService.findOneByEmailAndEmpresa(email, empresaId || '');
 
         if (usuario && (await bcrypt.compare(senha, usuario.senha))) {
             // Se a senha for válida, retorna o objeto sem a senha
