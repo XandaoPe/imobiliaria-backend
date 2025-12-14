@@ -7,10 +7,10 @@ import * as multer from 'multer';
 import { resolve } from 'path';
 import * as fs from 'fs';
 
-// ⭐️ DEFINIR O CAMINHO ABSOLUTO DA PASTA UPLOADS
-const UPLOADS_DIR = resolve(__dirname, '..', '..', 'uploads');
+// ⭐️ ATUALIZAÇÃO: Incluir o subdiretório 'imoveis' no caminho de uploads
+const UPLOADS_DIR = resolve(__dirname, '..', '..', 'uploads', 'imoveis');
 
-// ⭐️ Garantir que o diretório de uploads existe
+// ⭐️ Garantir que o diretório de uploads (agora incluindo 'imoveis') existe
 if (!fs.existsSync(UPLOADS_DIR)) {
     console.log(`Criando diretório de uploads: ${UPLOADS_DIR}`);
     // Cria de forma síncrona (mkdirSync) e recursiva (recursive: true)
@@ -21,12 +21,13 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 const storage = multer.diskStorage({
     // 1. Onde o arquivo será salvo
     destination: (req, file, cb) => {
-        // ⭐️ Usar a constante definida e verificada acima
+        // Agora ele salva em .../uploads/imoveis
         cb(null, UPLOADS_DIR);
     },
-    // 2. Como o arquivo será nomeado (sem alterações)
+    // 2. Como o arquivo será nomeado 
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        // Usando o fieldname (ex: 'file') e o nome original para ajudar a identificar
         cb(null, `${file.fieldname}-${uniqueSuffix}-${file.originalname}`);
     },
 });
@@ -36,13 +37,11 @@ const storage = multer.diskStorage({
         // ⭐️ Configura o Multer em escopo de módulo
         MulterModule.register({
             storage: storage,
-            // Opcional: Filtro de tipos de arquivo (Ex: apenas imagens)
+            // Opcional: Filtro de tipos de arquivo (apenas imagens)
             fileFilter: (req, file, cb) => {
                 if (file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
-                    // Aceita o arquivo
                     cb(null, true);
                 } else {
-                    // Rejeita o arquivo
                     cb(new Error('Apenas arquivos de imagem (jpg, jpeg, png, gif) são permitidos!'), false);
                 }
             },
@@ -54,6 +53,6 @@ const storage = multer.diskStorage({
     ],
     controllers: [UploadController],
     providers: [UploadService],
-    exports: [MulterModule] // Exportar para ser usado em outros módulos se necessário
+    exports: [MulterModule]
 })
 export class UploadModule { }

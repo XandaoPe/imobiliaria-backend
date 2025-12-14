@@ -1,7 +1,7 @@
 // src/cliente/cliente.controller.ts
 import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards, Req, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 
 import { ClienteService } from './cliente.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
@@ -37,6 +37,9 @@ export class ClienteController {
   // GET /clientes
   @Get()
   @ApiOperation({ summary: 'Lista todos os clientes pertencentes APENAS à empresa do usuário logado, com opção de busca por texto em todos os campos.' })
+  @ApiQuery({ name: 'search', required: false, description: 'Termo de busca por nome, endereço...' })
+  @ApiQuery({ name: 'status', required: false, description: 'Termo de busca por ativo e inativo' })
+
   // ⭐️ NOVO: Usar @Query('search') search?: string
   findAll(
     @Req() req: RequestWithUser,

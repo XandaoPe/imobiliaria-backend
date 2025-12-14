@@ -4,7 +4,7 @@ import {
   Query
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 
 import { ImovelService } from './imovel.service';
@@ -40,7 +40,9 @@ export class ImovelController {
   @Get()
   @Roles(...ROLES_ACCESS)
   @ApiOperation({ summary: 'Lista todos os imóveis da empresa (com busca opcional e filtro de status).' })
-  // ⭐️ ATUALIZADO: Adicionar o parâmetro de status
+  @ApiQuery({ name: 'search', required: false, description: 'Termo de busca por imovel, endereço...' })
+  @ApiQuery({ name: 'status', required: false, description: 'Termo de busca por disponível e indisponível' })
+     // ⭐️ ATUALIZADO: Adicionar o parâmetro de status
   findAll(
     @Req() req: RequestWithUser,
     @Query('search') search?: string,

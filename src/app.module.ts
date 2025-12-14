@@ -2,9 +2,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+// ⭐️ IMPORT NECESSÁRIO 1: ServeStaticModule
+import { ServeStaticModule } from '@nestjs/serve-static';
+// ⭐️ IMPORT NECESSÁRIO 2: join do path
+import { join } from 'path';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-// Importe o módulo Empresa que criaremos depois
+
 import { EmpresaModule } from './empresa/empresa.module';
 import { UsuarioModule } from './usuario/usuario.module';
 import { AuthModule } from './auth/auth.module';
@@ -20,7 +25,7 @@ import { NotificacaoModule } from './notificacao/notificacao.module';
   imports: [
     // 1. Configura o módulo de configuração
     ConfigModule.forRoot({
-      isGlobal: true, // Torna as variáveis de ambiente disponíveis globalmente
+      isGlobal: true,
     }),
 
     // 2. Configura a conexão com o MongoDB
@@ -32,6 +37,16 @@ import { NotificacaoModule } from './notificacao/notificacao.module';
       inject: [ConfigService],
     }),
 
+    // ⭐️ 3. CONFIGURAÇÃO PARA SERVIR ARQUIVOS ESTÁTICOS
+    ServeStaticModule.forRoot({
+      // rootPath aponta para a pasta física 'uploads' que está fora da pasta 'src'
+      rootPath: join(__dirname, '..', 'uploads'),
+
+      // serveRoot mapeia a URL pública para essa pasta.
+      serveRoot: '/uploads',
+    }),
+
+    // 4. Módulos da Aplicação
     EmpresaModule,
     UsuarioModule,
     AuthModule,
@@ -41,7 +56,7 @@ import { NotificacaoModule } from './notificacao/notificacao.module';
     AgendamentoModule,
     ContratoModule,
     RelatoriosModule,
-    NotificacaoModule, // Adiciona o módulo Empresa
+    NotificacaoModule,
   ],
   controllers: [AppController],
   providers: [AppService],
