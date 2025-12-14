@@ -64,6 +64,24 @@ export class CreateImovelDto {
     })
     banheiros?: number | null;
 
+    @IsInt()
+    @IsOptional()
+    @Min(0)
+    @Transform(({ value }) => {
+        if (value === '' || value === undefined || value === null) return null;
+        return Number(value);
+    })
+    area_terreno?: number | null;
+
+    @IsInt()
+    @IsOptional()
+    @Min(0)
+    @Transform(({ value }) => {
+        if (value === '' || value === undefined || value === null) return null;
+        return Number(value);
+    })
+    area_construida?: number | null;
+
     @IsBoolean()
     @IsOptional()
     garagem?: boolean; // O frontend já envia true/false

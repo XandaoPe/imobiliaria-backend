@@ -52,6 +52,12 @@ export class Imovel {
     @Prop({ required: false, default: null })
     banheiros?: number;
 
+    @Prop({ required: false, default: null })
+    area_terreno?: number;
+
+    @Prop({ required: false, default: null })
+    area_construida?: number;
+
     // Booleano opcional (Garagem)
     @Prop({ default: false }) // Booleans geralmente têm um default
     garagem: boolean;
