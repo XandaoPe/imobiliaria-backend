@@ -13,24 +13,33 @@ export class AuthController {
     constructor(private authService: AuthService) { }
 
     @Post('login')
-    @HttpCode(HttpStatus.OK) // Sucesso no login retorna 200
-    @ApiOperation({ summary: 'Realiza o login do usuário com email, senha e ID da Empresa.' })
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Realiza o login. Retorna lista de empresas se o ID não for fornecido.' })
     async login(@Body() body: AuthLoginDto) {
         try {
-            // 1. Valida o usuário (o Service lança UnauthorizedException em caso de falha)
-            const usuario = await this.authService.validateUser(
+            const result = await this.authService.validateUser(
                 body.email,
                 body.senha,
-                body.empresaId
+                body.empresaId // Passa o ID, pode ser undefined/nulo na Etapa 1
             );
-            // 2. Retorna o Token JWT
-            return this.authService.login(usuario);
+
+            // ⭐️ VERIFICAÇÃO CHAVE: Se o resultado pedir seleção, retorna a lista de empresas
+            if (result.requiresSelection) {
+                return {
+                    requiresSelection: true,
+                    empresas: result.empresas,
+                    // Poderia retornar um token de sessão aqui para evitar re-enviar Email/Senha
+                };
+            }
+
+            // Se não pedir seleção, retorna o Token JWT (Etapa 2 finalizada)
+            return this.authService.login(result);
         } catch (error) {
-            // Captura a exceção UnauthorizedException lançada pelo service
+            // ... (tratamento de erros permanece igual) ...
             if (error instanceof UnauthorizedException) {
                 throw error;
             }
-            throw error; // Relança outros erros
+            throw error;
         }
     }
 

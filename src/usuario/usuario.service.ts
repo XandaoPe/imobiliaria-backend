@@ -15,6 +15,16 @@ export class UsuarioService {
     @InjectModel(Usuario.name) private usuarioModel: Model<UsuarioDocument>,
   ) { }
 
+  // ⭐️ NOVO MÉTODO: Busca todos os usuários com um determinado email (para seleção da empresa)
+  async findByEmail(email: string): Promise<UsuarioDocument[]> {
+    // Seleciona +senha para comparação
+    // ⭐️ ADICIONA .populate('empresa') para trazer o objeto completo da empresa
+    return this.usuarioModel.find({ email })
+      .select('+senha')
+      .populate('empresa') // <-- POPULAÇÃO CHAVE
+      .exec();
+  }
+
   async findOneByEmailAndEmpresa(email: string, empresaId: string): Promise<UsuarioDocument | null> {
     let empresaObjectId: Types.ObjectId;
     try {

@@ -1,5 +1,5 @@
 // src/auth/dto/auth-login.dto.ts
-import { IsString, IsNotEmpty, IsEmail } from 'class-validator';
+import { IsString, IsNotEmpty, IsEmail, IsOptional } from 'class-validator';
 
 export class AuthLoginDto {
     @IsEmail()
@@ -9,7 +9,7 @@ export class AuthLoginDto {
     @IsNotEmpty()
     senha: string;
 
-    // ⭐️ CRUCIAL: ID da Empresa para o login multitenant
+    @IsOptional()
     @IsString()
     @IsNotEmpty()
     empresaId: string;
