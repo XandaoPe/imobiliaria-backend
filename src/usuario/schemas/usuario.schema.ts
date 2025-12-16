@@ -1,11 +1,9 @@
-// src/usuario/schemas/usuario.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { Empresa } from '../../empresa/schemas/empresa.schema'; // Importa o Schema da Empresa
+import { Empresa } from '../../empresa/schemas/empresa.schema';
 
 export type UsuarioDocument = Usuario & Document;
 
-// Enum para simplificar a gestão de perfis
 export enum PerfisEnum {
     ADM_GERAL = 'ADM_GERAL',
     GERENTE = 'GERENTE',
@@ -15,16 +13,16 @@ export enum PerfisEnum {
 
 @Schema({ timestamps: true })
 export class Usuario {
-    @Prop({ required: true, unique: true })
+
+    @Prop({ required: true })
     email: string;
 
     @Prop({ required: true })
-    senha: string; // Armazenaremos o HASH aqui
+    senha: string;
 
     @Prop({ required: true })
     nome: string;
 
-    // ⭐️ CHAVE DO MULTITENANCY: Vincula o usuário a uma empresa específica
     @Prop({ type: Types.ObjectId, ref: 'Empresa', required: true })
     empresa: Types.ObjectId;
 
@@ -37,5 +35,23 @@ export class Usuario {
 
 export const UsuarioSchema = SchemaFactory.createForClass(Usuario);
 
-// ⚠️ Adicionar um índice composto para garantir que emails sejam únicos POR EMPRESA
-// Isso é crucial para o multitenancy e será implementado no módulo.
+UsuarioSchema.index({ email: 1, empresa: 1 }, { unique: true });
+
+// 2. 🖥️ Configuração de Serialização (toJSON)
+UsuarioSchema.set('toJSON', {
+    virtuals: true,
+    transform: (doc, ret) => {
+        const transformed = ret as any;
+
+        transformed.id = transformed._id.toString();
+
+        if (transformed.empresa && transformed.empresa instanceof Types.ObjectId) {
+            transformed.empresa = transformed.empresa.toString();
+        }
+
+        delete transformed._id;
+        delete transformed.__v;
+
+        return transformed;
+    },
+});

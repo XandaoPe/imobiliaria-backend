@@ -15,9 +15,17 @@ export class UsuarioService {
     @InjectModel(Usuario.name) private usuarioModel: Model<UsuarioDocument>,
   ) { }
 
-  // ⭐️ BUSCA UTILIZADA PELO LOGIN/AUTH
   async findOneByEmailAndEmpresa(email: string, empresaId: string): Promise<UsuarioDocument | null> {
-    return this.usuarioModel.findOne({ email, empresa: empresaId }).exec();
+    let empresaObjectId: Types.ObjectId;
+    try {
+      empresaObjectId = new Types.ObjectId(empresaId);
+    } catch (e) {
+      return null;
+    }
+    return this.usuarioModel.findOne({
+      email,
+      empresa: empresaObjectId
+    }).exec();
   }
 
   async create(createUsuarioDto: CreateUsuarioDto, empresaId: string): Promise<Usuario> {
