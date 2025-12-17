@@ -1,5 +1,5 @@
 // src/empresa/empresa.controller.ts
-import { Controller, Get, Post, Body, Param, Delete, Put, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Put, HttpCode, HttpStatus, UseGuards, Query } from '@nestjs/common';
 import { EmpresaService } from './empresa.service';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { UpdateEmpresaDto } from './dto/update-empresa.dto';
@@ -30,8 +30,12 @@ export class EmpresaController {
   @Get()
   @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE)
   @ApiOperation({ summary: 'Lista empresa.' })
-  findAll(): Promise<Empresa[]> {
-    return this.empresaService.findAll();
+  findAll(
+    @Query('search') search?: string,
+    @Query('ativa') ativa?: string,
+    @Query('isAdmGeral') isAdmGeral?: string,
+  ): Promise<Empresa[]> {
+    return this.empresaService.findAll(search, ativa, isAdmGeral);
   }
 
   // GET /empresas/:id
@@ -55,4 +59,13 @@ export class EmpresaController {
   remove(@Param('id') id: string): Promise<any> {
     return this.empresaService.remove(id);
   }
+
+  @Post('delete-batch')
+  @Roles(PerfisEnum.ADM_GERAL)
+  @ApiOperation({ summary: 'Deleta várias empresas em massa.' })
+  @HttpCode(HttpStatus.OK)
+  async deleteBatch(@Body('ids') ids: string[]) {
+    return this.empresaService.removeMany(ids);
+  }
+  
 }

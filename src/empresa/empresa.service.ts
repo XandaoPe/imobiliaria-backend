@@ -31,8 +31,28 @@ export class EmpresaService {
     }
   }
 
-  async findAll(): Promise<Empresa[]> {
-    return this.empresaModel.find().exec();
+  async findAll(search?: string, ativa?: string, isAdmGeral?: string): Promise<Empresa[]> {
+    const query: any = {};
+
+    // Filtro de Texto (Nome ou CNPJ)
+    if (search) {
+      query.$or = [
+        { nome: { $regex: search, $options: 'i' } },
+        { cnpj: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    // Filtro de Status (Ativa/Inativa)
+    if (ativa && ativa !== 'TODAS') {
+      query.ativa = ativa === 'true';
+    }
+
+    // Filtro de Tipo (Adm Geral / Local)
+    if (isAdmGeral && isAdmGeral !== 'TODAS') {
+      query.isAdmGeral = isAdmGeral === 'true';
+    }
+
+    return this.empresaModel.find(query).sort({ nome: 1 }).exec();
   }
 
   async findOne(id: string): Promise<Empresa> {
@@ -61,4 +81,10 @@ export class EmpresaService {
     }
     return { message: `Empresa com ID "${id}" removida com sucesso` };
   }
+
+  async removeMany(ids: string[]): Promise<any> {
+    const result = await this.empresaModel.deleteMany({ _id: { $in: ids } }).exec();
+    return { message: `${result.deletedCount} empresas removidas com sucesso` };
+  }
+  
 }

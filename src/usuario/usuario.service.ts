@@ -47,7 +47,7 @@ export class UsuarioService {
       ...createUsuarioDto,
       senha: hashedPassword,
       // ⭐️ AGORA PEGA O empresaId INJETADO PELO CONTROLLER
-      empresa: empresaId,
+      empresa: new Types.ObjectId(empresaId),
     });
 
     try {
@@ -68,11 +68,11 @@ export class UsuarioService {
     empresaId: string,
     search?: string,
     perfil?: PerfisEnum,
-    ativo?: string // ⭐️ NOVO PARÂMETRO: Recebe 'true', 'false' ou undefined/null do controller
+    ativo?: string
   ): Promise<Usuario[]> {
 
     const filter: FilterQuery<UsuarioDocument> = {
-      empresa: empresaId // Usa a string do ID da empresa (Correção anterior)
+      empresa: new Types.ObjectId(empresaId) // Usa a string do ID da empresa (Correção anterior)
     };
 
     // 1. Filtro de Busca (Search)
@@ -84,26 +84,36 @@ export class UsuarioService {
       ];
     }
 
-    // 2. Filtro de Perfil
     const perfilValido = perfil && Object.values(PerfisEnum).includes(perfil);
 
     if (perfilValido) {
       filter.perfil = perfil;
     }
 
-    // 3. ⭐️ NOVO FILTRO: Status (Ativo/Inativo)
     if (ativo !== undefined && ativo !== null) {
       if (ativo === 'true') {
         filter.ativo = true;
       } else if (ativo === 'false') {
         filter.ativo = false;
       }
-      // Se 'ativo' for qualquer outra coisa (como 'TODOS' se fosse enviado, ou string inválida) 
-      // o filtro é ignorado, listando todos (ativos e inativos).
     }
 
-    return this.usuarioModel.find(filter).exec();
+    const usuarios = await this.usuarioModel.find(filter).exec();
+
+    return usuarios.map(u => {
+      const obj = u.toObject();
+
+      if (obj.empresa) {
+        const empresaRef = obj.empresa as any;
+        obj.empresa = empresaRef._id
+          ? empresaRef._id.toString()
+          : empresaRef.toString();
+      }
+
+      return obj;
+    });
   }
+ 
 
   async findOne(usuarioId: string, empresaId: string): Promise<Usuario> {
     const usuario = await this.usuarioModel
@@ -124,8 +134,8 @@ export class UsuarioService {
     const updatedUsuario = await this.usuarioModel
       .findOneAndUpdate(
         {
-          _id: usuarioId,
-          empresa: empresaId, // ⭐️ CORRIGIDO
+          _id: new Types.ObjectId(usuarioId), // ⭐️ Garanta que é um ObjectId
+          empresa: new Types.ObjectId(empresaId), // ⭐️ Garanta que a empresa também é ObjectId
         },
         {
           ...updateUsuarioDto,
@@ -148,7 +158,7 @@ export class UsuarioService {
   async remove(usuarioId: string, empresaId: string): Promise<{ message: string }> {
     const result = await this.usuarioModel.deleteOne({
       _id: new Types.ObjectId(usuarioId),
-      empresa: empresaId, // ⭐️ CORRIGIDO
+      empresa: new Types.ObjectId(empresaId),
     }).exec();
 
     if (result.deletedCount === 0) {

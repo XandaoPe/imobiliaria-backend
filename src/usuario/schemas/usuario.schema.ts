@@ -24,7 +24,7 @@ export class Usuario {
     nome: string;
 
     @Prop({ type: Types.ObjectId, ref: 'Empresa', required: true })
-    empresa: Types.ObjectId;
+    empresa: Types.ObjectId | Empresa | string;
 
     @Prop({ required: true, enum: PerfisEnum, default: PerfisEnum.CORRETOR })
     perfil: PerfisEnum;
@@ -41,16 +41,22 @@ UsuarioSchema.index({ email: 1, empresa: 1 }, { unique: true });
 UsuarioSchema.set('toJSON', {
     virtuals: true,
     transform: (doc, ret) => {
-        const transformed = ret as any;
+        // 'ret' é o objeto que será transformado em JSON
+        const transformed = ret as Record<string, any>;
 
-        transformed.id = transformed._id.toString();
+        // Converte o _id para id (string)
+        if (transformed._id) {
+            transformed.id = transformed._id.toString();
+        }
 
         if (transformed.empresa && transformed.empresa instanceof Types.ObjectId) {
             transformed.empresa = transformed.empresa.toString();
         }
 
+        // Remove campos sensíveis ou internos antes de enviar ao Front
         delete transformed._id;
         delete transformed.__v;
+        delete transformed.senha; // Segurança: nunca envie a senha no JSON
 
         return transformed;
     },
