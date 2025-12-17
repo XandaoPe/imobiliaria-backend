@@ -75,6 +75,15 @@ export class ImovelService {
         return this.imovelModel.find(filter).exec();
     }
 
+    async findAllPublic(): Promise<Imovel[]> {
+        // Buscamos apenas imóveis onde disponivel é true
+        // Não passamos o filtro de empresa para pegar de todos os clientes da sua plataforma
+        return this.imovelModel
+            .find({ disponivel: true })
+            .sort({ createdAt: -1 }) // Mostrar os mais recentes primeiro
+            .exec();
+    }
+
     // 3. BUSCA ÚNICA: Filtra por ID do Imóvel E ID da Empresa
     async findOne(imovelId: string, empresaId: string): Promise<Imovel> {
 

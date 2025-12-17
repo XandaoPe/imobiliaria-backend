@@ -24,13 +24,13 @@ export interface RequestWithUser extends Request {
 const ROLES_ACCESS = [PerfisEnum.CORRETOR, PerfisEnum.GERENTE, PerfisEnum.ADM_GERAL];
 
 @ApiTags('Imóveis')
-@ApiBearerAuth('access-token')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('imoveis')
 export class ImovelController {
   constructor(private readonly imovelService: ImovelService) { }
 
   @Post()
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(...ROLES_ACCESS)
   @ApiOperation({ summary: 'Cria um novo imóvel (Multitenancy).' })
   create(@Body() createImovelDto: CreateImovelDto, @Req() req: RequestWithUser): Promise<Imovel> {
@@ -38,6 +38,8 @@ export class ImovelController {
   }
 
   @Get()
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(...ROLES_ACCESS)
   @ApiOperation({ summary: 'Lista todos os imóveis da empresa (com busca opcional e filtro de status).' })
   @ApiQuery({ name: 'search', required: false, description: 'Termo de busca por imovel, endereço...' })
@@ -52,7 +54,18 @@ export class ImovelController {
     return this.imovelService.findAll(req.user.empresa, search, status);
   }
 
+  // imovel.controller.ts
+
+  @Get('publico')
+  // Se você usa um Guard global, adicione um decorator para ignorar a autenticação aqui
+  // @Public() 
+  async findAllPublic() {
+    return this.imovelService.findAllPublic();
+  }
+
   @Get(':id')
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(...ROLES_ACCESS)
   @ApiOperation({ summary: 'Busca um imóvel por ID (Multitenancy).' })
   findOne(@Param('id') id: string, @Req() req: RequestWithUser): Promise<Imovel> {
@@ -60,6 +73,8 @@ export class ImovelController {
   }
 
   @Put(':id')
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(...ROLES_ACCESS)
   @ApiOperation({ summary: 'Atualiza um imóvel por ID (Multitenancy).' })
   update(
@@ -71,6 +86,8 @@ export class ImovelController {
   }
 
   @Delete(':id')
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(PerfisEnum.GERENTE, PerfisEnum.ADM_GERAL)
   @ApiOperation({ summary: 'Remove um imóvel por ID (Apenas Gerente/ADM).' })
   remove(@Param('id') id: string, @Req() req: RequestWithUser): Promise<{ message: string }> {
@@ -82,6 +99,8 @@ export class ImovelController {
   // ROTA DE UPLOAD DE FOTO
   // ====================================================================
   @Post(':id/upload-foto')
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(...ROLES_ACCESS)
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Faz upload de uma foto e associa ao Imóvel (Multitenancy).' })
@@ -116,6 +135,8 @@ export class ImovelController {
   // ROTA DE REMOÇÃO DE FOTO
   // ====================================================================
   @Delete(':id/foto/:filename')
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(PerfisEnum.GERENTE, PerfisEnum.ADM_GERAL)
   @ApiOperation({ summary: 'Remove uma foto do array do Imóvel.' })
   async deletePhoto(
