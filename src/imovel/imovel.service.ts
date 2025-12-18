@@ -75,12 +75,10 @@ export class ImovelService {
         return this.imovelModel.find(filter).exec();
     }
 
-    async findAllPublic(): Promise<Imovel[]> {
-        // Buscamos apenas imóveis onde disponivel é true
-        // Não passamos o filtro de empresa para pegar de todos os clientes da sua plataforma
+    async findAllPublico() {
         return this.imovelModel
-            .find({ disponivel: true })
-            .sort({ createdAt: -1 }) // Mostrar os mais recentes primeiro
+            .find({ disponivel: true }) // Apenas os disponíveis na vitrine
+            .populate('empresa', 'nome') // ⭐️ BUSCA APENAS O NOME E LOGO DA EMPRESA
             .exec();
     }
 

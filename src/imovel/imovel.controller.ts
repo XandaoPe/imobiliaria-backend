@@ -60,7 +60,7 @@ export class ImovelController {
   // Se você usa um Guard global, adicione um decorator para ignorar a autenticação aqui
   // @Public() 
   async findAllPublic() {
-    return this.imovelService.findAllPublic();
+    return this.imovelService.findAllPublico();
   }
 
   @Get(':id')
