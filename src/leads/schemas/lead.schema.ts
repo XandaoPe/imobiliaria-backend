@@ -15,7 +15,10 @@ export class Lead extends Document {
     @Prop({ type: Types.ObjectId, ref: 'Empresa', required: true })
     empresa: Types.ObjectId;
 
-    @Prop({ default: 'NOVO', enum: ['NOVO', 'EM_ATENDIMENTO', 'CONCLUIDO'] })
+    @Prop({
+        default: 'NOVO',
+        enum: ['NOVO', 'EM_ANDAMENTO', 'CONCLUIDO']
+    })
     status: string;
 }
 
