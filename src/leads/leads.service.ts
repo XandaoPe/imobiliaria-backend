@@ -7,8 +7,23 @@ import { CreateLeadDto } from './dto/create-lead.dto';
 @Injectable()
 export class LeadsService {
     constructor(@InjectModel(Lead.name) private leadModel: Model<Lead>) { }
+    
+    async countNovos(empresaId: string): Promise<{ count: number }> {
+        // Aplicamos a mesma lógica de flexibilidade de ID/Objeto do findAllByEmpresa
+        const query = {
+            status: 'NOVO',
+            $or: [
+                { empresa: new Types.ObjectId(empresaId) },
+                { 'empresa._id': empresaId },
+                { 'empresa._id': new Types.ObjectId(empresaId) }
+            ]
+        };
 
-    // Criado pelo visitante na vitrine
+        const total = await this.leadModel.countDocuments(query);
+
+        return { count: total };
+    }
+
     async create(createLeadDto: CreateLeadDto): Promise<Lead> {
         const novoLead = new this.leadModel(createLeadDto);
         return novoLead.save();

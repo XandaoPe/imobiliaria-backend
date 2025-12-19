@@ -7,6 +7,14 @@ import { AuthGuard } from '@nestjs/passport';
 export class LeadsController {
     constructor(private readonly leadsService: LeadsService) { }
 
+    // ROTA PRIVADA: Apenas contagem de leads novos (Rápida e leve)
+    @UseGuards(AuthGuard('jwt'))
+    @Get('count')
+    async obterContagem(@Request() req) {
+        // req.user.empresa extraído do token JWT
+        return this.leadsService.countNovos(req.user.empresa);
+    }
+    
     // ROTA PÚBLICA: Visitante envia o interesse
     @Post('publico')
     async criar(@Body() createLeadDto: CreateLeadDto) {
