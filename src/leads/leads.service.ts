@@ -14,17 +14,42 @@ export class LeadsService {
         return novoLead.save();
     }
 
-    async findAllByEmpresa(empresaId: string): Promise<Lead[]> {
-        return this.leadModel
-            .find({
+    async findAllByEmpresa(empresaId: string, search?: string, status?: string): Promise<Lead[]> {
+        const query: any = {
+            // Esta condição aceita se "empresa" for o ID direto OU se for o objeto contendo o ID
+            $or: [
+                { empresa: new Types.ObjectId(empresaId) },
+                { 'empresa._id': empresaId },
+                { 'empresa._id': new Types.ObjectId(empresaId) }
+            ]
+        };
+
+        // Filtro de Status
+        if (status && status !== 'TODOS') {
+            query.status = status;
+        }
+
+        // Filtro de Busca por Nome ou Contato
+        if (search && search.trim() !== '') {
+            // Como já usamos um $or para a empresa, precisamos usar $and para combinar com a busca
+            const searchFilter = {
                 $or: [
-                    { empresa: empresaId },            // Caso seja string
-                    { 'empresa._id': empresaId },     // Caso seja objeto (se gravou o objeto inteiro)
-                    { 'empresa': new Types.ObjectId(empresaId) } // Caso seja ObjectId
+                    { nome: { $regex: search, $options: 'i' } },
+                    { contato: { $regex: search, $options: 'i' } }
                 ]
-            })
+            };
+
+            // Mesclamos a busca na query principal
+            return this.leadModel
+                .find({ ...query, ...searchFilter })
+                .populate('imovel', 'titulo valor fotos')
+                .sort({ createdAt: -1 })
+                .exec();
+        }
+
+        return this.leadModel
+            .find(query)
             .populate('imovel', 'titulo valor fotos')
-            .populate('empresa', 'nome') // Garante que o front receba sempre o objeto agora
             .sort({ createdAt: -1 })
             .exec();
     }

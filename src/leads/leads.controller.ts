@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request, Query } from '@nestjs/common';
 import { LeadsService } from './leads.service';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { AuthGuard } from '@nestjs/passport';
@@ -16,9 +16,13 @@ export class LeadsController {
     // ROTA PRIVADA: Imobiliária vê seus leads
     @UseGuards(AuthGuard('jwt'))
     @Get()
-    async listar(@Request() req) {
-        // Pegamos o ID da empresa do token do usuário logado
-        return this.leadsService.findAllByEmpresa(req.user.empresa);
+    async listar(
+        @Request() req,
+        @Query('search') search?: string,
+        @Query('status') status?: string
+    ) {
+        // Verifique no console se esses dados chegam ao chamar a rota
+        return this.leadsService.findAllByEmpresa(req.user.empresa, search, status);
     }
 
     // ROTA PRIVADA: Mudar status do lead (ex: 'EM ATENDIMENTO')
