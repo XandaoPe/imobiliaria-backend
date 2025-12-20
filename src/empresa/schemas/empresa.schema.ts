@@ -12,6 +12,9 @@ export class Empresa {
     @Prop({ required: true, unique: true })
     nome: string; // Ex: Nome da Imobiliária
 
+    @Prop()
+    fone: string;
+
     @Prop({ default: true })
     isAdmGeral?: boolean;
 

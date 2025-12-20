@@ -39,6 +39,7 @@ export class EmpresaService {
       query.$or = [
         { nome: { $regex: search, $options: 'i' } },
         { cnpj: { $regex: search, $options: 'i' } },
+        { fone: { $regex: search, $options: 'i' } }, // Adicione esta linha
       ];
     }
 

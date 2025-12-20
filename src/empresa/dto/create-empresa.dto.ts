@@ -2,13 +2,18 @@
 import { IsString, IsNotEmpty, IsBoolean, IsOptional } from 'class-validator';
 
 export class CreateEmpresaDto {
+    
+    @IsString()
+    @IsNotEmpty()
+    cnpj: string;
+    
     @IsString()
     @IsNotEmpty()
     nome: string;
 
     @IsString()
-    @IsNotEmpty()
-    cnpj: string;
+    @IsOptional()
+    fone?: string;
 
     @IsBoolean()
     @IsOptional()
