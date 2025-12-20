@@ -80,4 +80,27 @@ export class LeadsService {
 
         return leadAtualizado;
     }
+
+    // leads.service.ts
+
+    async getDashboardStats(empresaId: string) {
+        const queryEmpresa = {
+            $or: [
+                { empresa: new Types.ObjectId(empresaId) },
+                { 'empresa._id': empresaId },
+                { 'empresa._id': new Types.ObjectId(empresaId) }
+            ]
+        };
+
+        // Executa as contagens em paralelo para ser ultra rápido
+        const [total, novos, emAtendimento, encerrados] = await Promise.all([
+            this.leadModel.countDocuments(queryEmpresa),
+            this.leadModel.countDocuments({ ...queryEmpresa, status: 'NOVO' }),
+            this.leadModel.countDocuments({ ...queryEmpresa, status: 'EM_ANDAMENTO' }),
+            this.leadModel.countDocuments({ ...queryEmpresa, status: 'CONCLUIDO' }), // Ajuste conforme seus nomes de status
+        ]);
+
+        return { total, novos, emAtendimento, encerrados };
+    }
+
 }

@@ -14,7 +14,7 @@ export class LeadsController {
         // req.user.empresa extraído do token JWT
         return this.leadsService.countNovos(req.user.empresa);
     }
-    
+
     // ROTA PÚBLICA: Visitante envia o interesse
     @Post('publico')
     async criar(@Body() createLeadDto: CreateLeadDto) {
@@ -39,4 +39,11 @@ export class LeadsController {
     async atualizarStatus(@Param('id') id: string, @Body('status') status: string) {
         return this.leadsService.updateStatus(id, status);
     }
+
+    @UseGuards(AuthGuard('jwt'))
+    @Get('stats')
+    async obterEstatisticas(@Request() req) {
+        return this.leadsService.getDashboardStats(req.user.empresa);
+    }
+    
 }

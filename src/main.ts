@@ -42,6 +42,8 @@ async function bootstrap() {
   SwaggerModule.setup('api-docs', app, document);
 
   // 3. Inicia o servidor na porta 5000
-  await app.listen(5000);
+  await app.listen(5000, '0.0.0.0', () => {
+    console.log('Servidor rodando na porta 5000');
+  });
 }
 bootstrap();
