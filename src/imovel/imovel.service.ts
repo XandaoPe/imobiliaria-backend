@@ -41,41 +41,70 @@ export class ImovelService {
         return createdImovel.save();
     }
 
-    // 2. BUSCA GERAL: Adiciona filtro de status (disponível/indisponível)
     async findAll(empresaId: string, search?: string, status?: string): Promise<Imovel[]> {
-
-        // ⭐️ Aplica a validação
         const empresaObjectId = this.validateAndConvertId(empresaId, 'ID da Empresa');
 
-        // Agora o 'empresaId' está seguro para ser usado no BSON
-        const filter: FilterQuery<ImovelDocument> = { empresa: empresaObjectId };
+        const pipeline: any[] = [
+            {
+                // Filtra primeiro pela empresa do usuário logado (Multitenancy)
+                $match: { empresa: empresaObjectId }
+            },
+            {
+                $lookup: {
+                    from: 'empresas', // Nome da sua coleção de empresas
+                    localField: 'empresa',
+                    foreignField: '_id',
+                    as: 'empresa_info',
+                },
+            },
+            { $unwind: '$empresa_info' },
+        ];
 
-        // ⭐️ NOVO: Lógica para filtrar por Status
+        // Filtro de Status (Disponível/Indisponível)
         if (status) {
-            if (status.toUpperCase() === 'DISPONIVEL') {
-                filter.disponivel = true;
-            } else if (status.toUpperCase() === 'INDISPONIVEL') {
-                filter.disponivel = false;
-            }
+            const isDisponivel = status.toUpperCase() === 'DISPONIVEL';
+            pipeline.push({ $match: { disponivel: isDisponivel } });
         }
 
+        // Busca Textual (Título, Endereço, Cidade e NOME DA EMPRESA)
         if (search) {
             const regex = new RegExp(search, 'i');
-
-            // Os campos do $or combinam com os campos buscáveis do frontend
-            filter.$or = [
-                { titulo: { $regex: regex } },
-                { endereco: { $regex: regex } },
-                { descricao: { $regex: regex } },
-                // Adicione outros campos, se necessário
-            ];
+            pipeline.push({
+                $match: {
+                    $or: [
+                        { titulo: { $regex: regex } },
+                        { endereco: { $regex: regex } },
+                        { cidade: { $regex: regex } },
+                        { descricao: { $regex: regex } },
+                        { 'empresa_info.nome': { $regex: regex } }, // Agora a busca por nome funciona logado!
+                    ],
+                },
+            });
         }
 
-        // Executa a busca com o filtro combinado
-        return this.imovelModel.find(filter).exec();
-    }
+        // Projeta os dados para o formato que o Frontend espera
+        pipeline.push({
+            $project: {
+                titulo: 1,
+                tipo: 1,
+                endereco: 1,
+                valor: 1,
+                disponivel: 1,
+                cidade: 1,
+                descricao: 1,
+                fotos: 1,
+                detalhes: 1,
+                quartos: 1,
+                banheiros: 1,
+                area_terreno: 1,
+                area_construida: 1,
+                garagem: 1,
+                empresa: '$empresa_info', 
+            }
+        });
 
-    // No seu imovel.service.ts, dentro de findAllPublico:
+        return this.imovelModel.aggregate(pipeline).exec();
+    }
 
     async findAllPublico(search?: string) {
         // 1. Criamos o estágio de Lookup para trazer os dados da empresa ANTES do filtro
@@ -134,7 +163,7 @@ export class ImovelService {
 
         return this.imovelModel.aggregate(pipeline).exec();
     }
-    
+
     // 3. BUSCA ÚNICA: Filtra por ID do Imóvel E ID da Empresa
     async findOne(imovelId: string, empresaId: string): Promise<Imovel> {
 
