@@ -9,10 +9,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    // ⭐️ 2. DEFINIR A ORIGEM DO SEU FRONTEND (React)
-    origin: 'http://localhost:3000', 
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Tipos de métodos permitidos
-    credentials: true, // Permitir o envio de cookies de autenticação (se usados)
+    // Permitir tanto o seu localhost quanto a URL da Vercel
+    // Ou simplesmente coloque origin: true para permitir qualquer uma
+    origin: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true,
   });
   
   // 1. Configuração Global (Validation Pipe)
