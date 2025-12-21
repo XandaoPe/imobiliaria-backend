@@ -75,35 +75,66 @@ export class ImovelService {
         return this.imovelModel.find(filter).exec();
     }
 
-    async findAllPublico(search?: string) {
-        const filter: FilterQuery<ImovelDocument> = { disponivel: true };
+    // No seu imovel.service.ts, dentro de findAllPublico:
 
+    async findAllPublico(search?: string) {
+        // 1. Criamos o estágio de Lookup para trazer os dados da empresa ANTES do filtro
+        const pipeline: any[] = [
+            {
+                $lookup: {
+                    from: 'empresas', // Nome da coleção de empresas no MongoDB (geralmente plural)
+                    localField: 'empresa',
+                    foreignField: '_id',
+                    as: 'empresa_info',
+                },
+            },
+            { $unwind: '$empresa_info' }, // Transforma o array em objeto
+            {
+                $match: {
+                    disponivel: true, // Apenas imóveis disponíveis
+                },
+            },
+        ];
+
+        // 2. Se houver busca, adicionamos o estágio de Match com o OR
         if (search) {
             const regex = new RegExp(search, 'i');
-            const searchNumber = parseFloat(search);
-
-            // Monta o array de busca
-            const orConditions: any[] = [
-                { titulo: { $regex: regex } },
-                { cidade: { $regex: regex } }, // Adicionado campo cidade
-                { endereco: { $regex: regex } },
-                { descricao: { $regex: regex } }
-            ];
-
-            // Se o usuário digitou um número, busca por valor exato
-            if (!isNaN(searchNumber)) {
-                orConditions.push({ valor: { $lte: searchNumber } });
-            }
-
-            filter.$or = orConditions;
+            pipeline.push({
+                $match: {
+                    $or: [
+                        { titulo: { $regex: regex } },
+                        { cidade: { $regex: regex } },
+                        { endereco: { $regex: regex } },
+                        { descricao: { $regex: regex } },
+                        { 'empresa_info.nome': { $regex: regex } }, // Agora a busca no nome da empresa funciona!
+                    ],
+                },
+            });
         }
 
-        return this.imovelModel
-            .find(filter)
-            .populate('empresa', 'nome fone') // Garante que traga os dados da empresa se existirem
-            .exec();
-    }
+        // 3. Projetamos o resultado para manter a estrutura original do seu Objeto (opcional mas recomendado)
+        pipeline.push({
+            $project: {
+                titulo: 1,
+                tipo: 1,
+                endereco: 1,
+                valor: 1,
+                disponivel: 1,
+                cidade: 1,
+                descricao: 1,
+                fotos: 1,
+                area_construida: 1,
+                area_terreno: 1,
+                quartos: 1,
+                banheiros: 1,
+                garagem: 1,
+                empresa: '$empresa_info', // Mapeia de volta para o campo 'empresa'
+            }
+        });
 
+        return this.imovelModel.aggregate(pipeline).exec();
+    }
+    
     // 3. BUSCA ÚNICA: Filtra por ID do Imóvel E ID da Empresa
     async findOne(imovelId: string, empresaId: string): Promise<Imovel> {
 
