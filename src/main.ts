@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
+  const PORT = process.env.PORT || 5000;
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
@@ -42,8 +43,8 @@ async function bootstrap() {
   SwaggerModule.setup('api-docs', app, document);
 
   // 3. Inicia o servidor na porta 5000
-  await app.listen(5000, '0.0.0.0', () => {
-    console.log('Servidor rodando na porta 5000');
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
   });
 }
 bootstrap();
