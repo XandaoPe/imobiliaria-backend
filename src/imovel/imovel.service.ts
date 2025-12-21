@@ -75,10 +75,32 @@ export class ImovelService {
         return this.imovelModel.find(filter).exec();
     }
 
-    async findAllPublico() {
+    async findAllPublico(search?: string) {
+        const filter: FilterQuery<ImovelDocument> = { disponivel: true };
+
+        if (search) {
+            const regex = new RegExp(search, 'i');
+            const searchNumber = parseFloat(search);
+
+            // Monta o array de busca
+            const orConditions: any[] = [
+                { titulo: { $regex: regex } },
+                { cidade: { $regex: regex } }, // Adicionado campo cidade
+                { endereco: { $regex: regex } },
+                { descricao: { $regex: regex } }
+            ];
+
+            // Se o usuário digitou um número, busca por valor exato
+            if (!isNaN(searchNumber)) {
+                orConditions.push({ valor: { $lte: searchNumber } });
+            }
+
+            filter.$or = orConditions;
+        }
+
         return this.imovelModel
-            .find({ disponivel: true }) // Apenas os disponíveis na vitrine
-            .populate('empresa', 'nome') // ⭐️ BUSCA APENAS O NOME E LOGO DA EMPRESA
+            .find(filter)
+            .populate('empresa', 'nome fone') // Garante que traga os dados da empresa se existirem
             .exec();
     }
 

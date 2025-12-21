@@ -54,13 +54,10 @@ export class ImovelController {
     return this.imovelService.findAll(req.user.empresa, search, status);
   }
 
-  // imovel.controller.ts
 
   @Get('publico')
-  // Se você usa um Guard global, adicione um decorator para ignorar a autenticação aqui
-  // @Public() 
-  async findAllPublic() {
-    return this.imovelService.findAllPublico();
+  async findAllPublic(@Query('search') search?: string) {
+    return this.imovelService.findAllPublico(search);
   }
 
   @Get(':id')
