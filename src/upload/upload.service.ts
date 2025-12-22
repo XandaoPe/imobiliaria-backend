@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { v2 as cloudinary } from 'cloudinary';
-import * as toStream from 'buffer-to-stream';
+import { Readable } from 'stream';
 
 @Injectable()
 export class UploadService {
@@ -52,7 +52,10 @@ export class UploadService {
 
             // O erro 500 costuma acontecer aqui se o buffer estiver corrompido ou o stream falhar
             try {
-                toStream(file.buffer).pipe(upload);
+                const stream = new Readable();
+                stream.push(file.buffer);
+                stream.push(null); // Indica o fim do arquivo
+                stream.pipe(upload);
             } catch (streamError) {
                 console.error('ERRO AO CRIAR STREAM:', streamError);
                 reject(streamError);
