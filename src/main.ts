@@ -9,12 +9,21 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: true, // Ou a URL da sua vercel
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+
+    origin: (origin, callback) => {
+
+      callback(null, true);
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
+    allowedHeaders: [
+      'Origin',
+      'X-Requested-With',
+      'Content-Type',
+      'Accept',
+      'Authorization',
+      'X-HTTP-Method-Override',
+    ],
   });
   
   // 1. Configuração Global (Validation Pipe)
