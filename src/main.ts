@@ -8,39 +8,45 @@ async function bootstrap() {
   const PORT = process.env.PORT || 5000;
   const app = await NestFactory.create(AppModule);
 
-  // Configure CORS corretamente
-  app.enableCors({
-    origin: (origin, callback) => {
-      // Permitir todas as origens durante o desenvolvimento
-      // Em produção, você pode restringir
-      const allowedOrigins = [
-        'https://imobiliaria-frontend-six.vercel.app',
-        'http://localhost:3000',
-        'http://localhost:5173',
-      ];
 
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  app.enableCors({
+    origin: true, // Permite TUDO (simples e funciona)
     credentials: true,
-    allowedHeaders: [
-      'Origin',
-      'X-Requested-With',
-      'Content-Type',
-      'Accept',
-      'Authorization',
-      'X-HTTP-Method-Override',
-      'Cache-Control', // ← ADICIONE ESTE
-      'Pragma',        // ← ADICIONE ESTE
-      'Expires',       // ← ADICIONE ESTE
-      'Access-Control-Allow-Headers', // ← ADICIONE ESTE
-    ],
-    exposedHeaders: ['Authorization'], // Headers que o frontend pode acessar
   });
+  
+  // // Configure CORS corretamente
+  // app.enableCors({
+  //   origin: (origin, callback) => {
+  //     // Permitir todas as origens durante o desenvolvimento
+  //     // Em produção, você pode restringir
+  //     const allowedOrigins = [
+  //       'https://imobiliaria-frontend-six.vercel.app',
+  //       'http://localhost:3000',
+  //       'http://localhost:5173',
+  //     ];
+
+  //     if (!origin || allowedOrigins.includes(origin)) {
+  //       callback(null, true);
+  //     } else {
+  //       callback(new Error('Not allowed by CORS'));
+  //     }
+  //   },
+  //   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  //   credentials: true,
+  //   allowedHeaders: [
+  //     'Origin',
+  //     'X-Requested-With',
+  //     'Content-Type',
+  //     'Accept',
+  //     'Authorization',
+  //     'X-HTTP-Method-Override',
+  //     'Cache-Control', // ← ADICIONE ESTE
+  //     'Pragma',        // ← ADICIONE ESTE
+  //     'Expires',       // ← ADICIONE ESTE
+  //     'Access-Control-Allow-Headers', // ← ADICIONE ESTE
+  //   ],
+  //   exposedHeaders: ['Authorization'], // Headers que o frontend pode acessar
+  // });
 
   // Adicione um middleware global para lidar com preflight OPTIONS
   app.use((req, res, next) => {
