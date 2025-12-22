@@ -14,6 +14,7 @@ async function bootstrap() {
     origin: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
+    allowedHeaders: 'Content-Type, Accept, Authorization',
   });
   
   // 1. Configuração Global (Validation Pipe)
