@@ -231,8 +231,7 @@ export class ImovelService {
     // Adicionar Foto
     // ====================================================================
     async addPhoto(imovelId: string, empresaId: string, filename: string): Promise<Imovel> {
-
-        // ⭐️ Aplica a validação
+        // Validação de IDs para evitar erro de cast do MongoDB
         const empresaObjectId = this.validateAndConvertId(empresaId, 'ID da Empresa');
         const imovelObjectId = this.validateAndConvertId(imovelId, 'ID do Imóvel');
 
@@ -246,30 +245,48 @@ export class ImovelService {
         ).exec();
 
         if (!imovel) {
-            throw new NotFoundException(`Imóvel com ID "${imovelId}" não encontrado ou não pertence a esta empresa.`);
+            throw new NotFoundException(`Imóvel com ID "${imovelId}" não encontrado.`);
         }
-        return imovel;
+
+        // Retorno com cast para garantir compatibilidade com a interface
+        return imovel as unknown as Imovel;
     }
 
     // ====================================================================
     // Remover Foto
     // ====================================================================
     async removePhoto(imovelId: string, empresaId: string, photoUrl: string): Promise<Imovel> {
-        // 1. Remove do Cloudinary
-        await this.uploadService.deleteImage(photoUrl);
+        try {
+            // Validação de IDs
+            const empresaObjectId = this.validateAndConvertId(empresaId, 'ID da Empresa');
+            const imovelObjectId = this.validateAndConvertId(imovelId, 'ID do Imóvel');
 
-        // 2. Tenta remover a URL do array no MongoDB
-        const imovelAtualizado = await this.imovelModel.findOneAndUpdate(
-            { _id: imovelId, empresa: empresaId },
-            { $pull: { fotos: photoUrl } },
-            { new: true }
-        );
+            // 1. Remove do Cloudinary primeiro
+            // Se o Cloudinary falhar, ele cairá no catch abaixo
+            await this.uploadService.deleteImage(photoUrl);
 
-        // ⭐️ VERIFICAÇÃO DE SEGURANÇA:
-        if (!imovelAtualizado) {
-            throw new NotFoundException('Imóvel não encontrado ou você não tem permissão.');
+            // 2. Remove a URL do array no MongoDB
+            const imovelAtualizado = await this.imovelModel.findOneAndUpdate(
+                {
+                    _id: imovelObjectId,
+                    empresa: empresaObjectId
+                },
+                { $pull: { fotos: photoUrl } },
+                { new: true }
+            ).exec();
+
+            if (!imovelAtualizado) {
+                throw new NotFoundException('Imóvel não encontrado ou você não tem permissão.');
+            }
+
+            return imovelAtualizado as unknown as Imovel;
+        } catch (error) {
+            // Se for um erro que nós já tratamos (NotFound), repassa ele
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
+                throw error;
+            }
+            // Caso contrário, lança o erro detalhado para evitar o 500 genérico
+            throw new Error(`Erro ao processar remoção: ${error.message}`);
         }
-
-        return imovelAtualizado;
     }
 }
