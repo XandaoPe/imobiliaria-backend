@@ -14,28 +14,44 @@ export class UploadService {
     }
 
     async uploadImage(file: Express.Multer.File): Promise<string> {
-        if (!file) {
+        console.log('--- INICIANDO UPLOAD PARA CLOUDINARY ---');
+        console.log('Arquivo recebido:', file?.originalname);
+        console.log('Tamanho do buffer:', file?.buffer?.length, 'bytes');
+
+        if (!file || !file.buffer) {
+            console.error('ERRO: Arquivo ou Buffer ausente!');
             throw new BadRequestException('Nenhum arquivo enviado.');
         }
 
         return new Promise((resolve, reject) => {
             const upload = cloudinary.uploader.upload_stream(
                 {
-                    folder: 'imoveis', // As fotos serão organizadas nesta pasta no Cloudinary
+                    folder: 'imoveis',
                     resource_type: 'auto',
                 },
                 (error, result) => {
-                    if (error) return reject(error);
+                    if (error) {
+                        console.error('ERRO DO CLOUDINARY NO STREAM:', error);
+                        return reject(error);
+                    }
+
                     if (!result) {
+                        console.error('ERRO: Resultado do Cloudinary veio vazio.');
                         return reject(new Error('Falha ao obter resposta do Cloudinary.'));
                     }
+
+                    console.log('SUCESSO NO CLOUDINARY! URL:', result.secure_url);
                     resolve(result.secure_url);
                 },
             );
 
-
-            // Converte o buffer do arquivo em stream e envia para o Cloudinary
-            toStream(file.buffer).pipe(upload);
+            // O erro 500 costuma acontecer aqui se o buffer estiver corrompido ou o stream falhar
+            try {
+                toStream(file.buffer).pipe(upload);
+            } catch (streamError) {
+                console.error('ERRO AO CRIAR STREAM:', streamError);
+                reject(streamError);
+            }
         });
     }
 
