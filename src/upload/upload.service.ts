@@ -17,6 +17,11 @@ export class UploadService {
         console.log('--- INICIANDO UPLOAD PARA CLOUDINARY ---');
         console.log('Arquivo recebido:', file?.originalname);
         console.log('Tamanho do buffer:', file?.buffer?.length, 'bytes');
+        console.log('Cloud Name:', process.env.CLOUDINARY_NAME);
+
+        if (!process.env.CLOUDINARY_NAME) {
+            throw new Error("Erro Crítico: Variáveis do Cloudinary não carregadas no .env");
+        }
 
         if (!file || !file.buffer) {
             console.error('ERRO: Arquivo ou Buffer ausente!');
