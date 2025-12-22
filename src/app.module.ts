@@ -38,12 +38,9 @@ import { LeadsModule } from './leads/leads.module';
       inject: [ConfigService],
     }),
 
-    // ⭐️ 3. CONFIGURAÇÃO PARA SERVIR ARQUIVOS ESTÁTICOS
     ServeStaticModule.forRoot({
-      // rootPath aponta para a pasta física 'uploads' que está fora da pasta 'src'
-      rootPath: join(__dirname, '..', 'uploads'),
-
-      // serveRoot mapeia a URL pública para essa pasta.
+      // Isso tenta achar a pasta uploads na raiz do projeto, independente de onde o arquivo rodar
+      rootPath: join(process.cwd(), 'uploads'),
       serveRoot: '/uploads',
     }),
 

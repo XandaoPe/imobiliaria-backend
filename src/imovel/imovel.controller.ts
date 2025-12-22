@@ -16,6 +16,7 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { PerfisEnum } from 'src/usuario/schemas/usuario.schema';
 import { UsuarioPayload } from 'src/auth/interfaces/usuario-payload.interface';
+import { UploadService } from '../upload/upload.service';
 
 export interface RequestWithUser extends Request {
   user: UsuarioPayload;
@@ -26,7 +27,9 @@ const ROLES_ACCESS = [PerfisEnum.CORRETOR, PerfisEnum.GERENTE, PerfisEnum.ADM_GE
 @ApiTags('Imóveis')
 @Controller('imoveis')
 export class ImovelController {
-  constructor(private readonly imovelService: ImovelService) { }
+  constructor(private readonly imovelService: ImovelService,
+    private readonly uploadService: UploadService,
+  ) { }
 
   @Post()
   @ApiBearerAuth('access-token')
@@ -100,32 +103,22 @@ export class ImovelController {
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(...ROLES_ACCESS)
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Faz upload de uma foto e associa ao Imóvel (Multitenancy).' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
-      },
-    },
-  })
   async uploadPhoto(
     @Param('id') imovelId: string,
     @UploadedFile() file: Express.Multer.File,
     @Req() req: RequestWithUser,
   ): Promise<Imovel> {
     if (!file) {
-      throw new HttpException('Nenhum arquivo de foto enviado.', HttpStatus.BAD_REQUEST);
+      throw new HttpException('Nenhum arquivo enviado.', HttpStatus.BAD_REQUEST);
     }
 
     const empresaId = req.user.empresa;
-    const filename = file.filename;
 
-    return this.imovelService.addPhoto(imovelId, empresaId, filename);
+    // ⭐️ 1. Envia para o Cloudinary em vez de usar o disco local
+    const urlCompleta = await this.uploadService.uploadImage(file);
+
+    // ⭐️ 2. Salva a URL completa no banco de dados
+    return this.imovelService.addPhoto(imovelId, empresaId, urlCompleta);
   }
 
   // ====================================================================
@@ -138,11 +131,10 @@ export class ImovelController {
   @ApiOperation({ summary: 'Remove uma foto do array do Imóvel.' })
   async deletePhoto(
     @Param('id') imovelId: string,
-    @Param('filename') filename: string,
+    @Param('filename') filename: string, // Aqui o filename será a URL completa ou parte dela
     @Req() req: RequestWithUser,
   ): Promise<Imovel> {
     const empresaId = req.user.empresa;
-
     return this.imovelService.removePhoto(imovelId, empresaId, filename);
   }
 }

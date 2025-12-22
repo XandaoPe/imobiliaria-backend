@@ -4,11 +4,13 @@ import { Model, Types, FilterQuery } from 'mongoose';
 import { Imovel, ImovelDocument } from './schemas/imovel.schema';
 import { CreateImovelDto } from './dto/create-imovel.dto';
 import { UpdateImovelDto } from './dto/update-imovel.dto';
+import { UploadService } from 'src/upload/upload.service';
 
 @Injectable()
 export class ImovelService {
     constructor(
         @InjectModel(Imovel.name) private imovelModel: Model<ImovelDocument>,
+        private readonly uploadService: UploadService,
     ) { }
 
     // ⭐️ MÉTODO DE VALIDAÇÃO: Centraliza a verificação do ID BSON
@@ -252,24 +254,22 @@ export class ImovelService {
     // ====================================================================
     // Remover Foto
     // ====================================================================
-    async removePhoto(imovelId: string, empresaId: string, filename: string): Promise<Imovel> {
+    async removePhoto(imovelId: string, empresaId: string, photoUrl: string): Promise<Imovel> {
+        // 1. Remove do Cloudinary
+        await this.uploadService.deleteImage(photoUrl);
 
-        // ⭐️ Aplica a validação
-        const empresaObjectId = this.validateAndConvertId(empresaId, 'ID da Empresa');
-        const imovelObjectId = this.validateAndConvertId(imovelId, 'ID do Imóvel');
-
-        const imovel = await this.imovelModel.findOneAndUpdate(
-            {
-                _id: imovelObjectId,
-                empresa: empresaObjectId
-            },
-            { $pull: { fotos: filename } },
+        // 2. Tenta remover a URL do array no MongoDB
+        const imovelAtualizado = await this.imovelModel.findOneAndUpdate(
+            { _id: imovelId, empresa: empresaId },
+            { $pull: { fotos: photoUrl } },
             { new: true }
-        ).exec();
+        );
 
-        if (!imovel) {
-            throw new NotFoundException(`Imóvel com ID "${imovelId}" não encontrado ou não pertence a esta empresa.`);
+        // ⭐️ VERIFICAÇÃO DE SEGURANÇA:
+        if (!imovelAtualizado) {
+            throw new NotFoundException('Imóvel não encontrado ou você não tem permissão.');
         }
-        return imovel;
+
+        return imovelAtualizado;
     }
 }

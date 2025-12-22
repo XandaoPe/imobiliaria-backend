@@ -6,7 +6,6 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { PerfisEnum } from 'src/usuario/schemas/usuario.schema';
 import { UploadService } from './upload.service';
-// ⭐️ As importações desnecessárias (Get, Param, Res, etc.) foram removidas
 
 @ApiTags('Arquivos e Uploads')
 @ApiBearerAuth('access-token')
@@ -15,11 +14,10 @@ import { UploadService } from './upload.service';
 export class UploadController {
     constructor(private readonly uploadService: UploadService) { }
 
-    // 1. Rota de Upload (POST)
     @Post('foto-imovel')
     @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.CORRETOR)
-    @UseInterceptors(FileInterceptor('file'))
-    @ApiOperation({ summary: 'Faz upload de uma foto, salvando-a localmente.' })
+    @UseInterceptors(FileInterceptor('file')) // O NestJS manterá o arquivo em memória (buffer)
+    @ApiOperation({ summary: 'Faz upload de uma foto diretamente para o Cloudinary.' })
     @ApiConsumes('multipart/form-data')
     @ApiBody({
         schema: {
@@ -32,22 +30,26 @@ export class UploadController {
             },
         },
     })
-    uploadFile(@UploadedFile() file: Express.Multer.File) {
+    async uploadFile(@UploadedFile() file: Express.Multer.File) {
         if (!file) {
             throw new HttpException('Nenhum arquivo enviado.', HttpStatus.BAD_REQUEST);
         }
 
-        // Retornamos o filename, que será salvo no DB do Imóvel.
-        return {
-            message: 'Upload realizado com sucesso!',
-            filename: file.filename,
-            // Sugestão: Acessível em http://localhost:5000/uploads/imoveis/{{filename}}
-            path: `uploads/imoveis/${file.filename}`,
-            mimetype: file.mimetype,
-            size: file.size,
-        };
-    }
+        try {
+            // ⭐️ Chamar o serviço que envia para a nuvem
+            const url = await this.uploadService.uploadImage(file);
 
-    // ⭐️ A ROTA de GET(':filename') FOI REMOVIDA.
-    // O NestJS agora serve o arquivo estaticamente via ServeStaticModule.
+            return {
+                message: 'Upload realizado com sucesso no Cloudinary!',
+                url: url, // ⭐️ Esta URL completa é o que o seu Frontend deve salvar no banco
+                mimetype: file.mimetype,
+                size: file.size,
+            };
+        } catch (error) {
+            throw new HttpException(
+                'Erro ao processar upload para a nuvem: ' + error.message,
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
 }
