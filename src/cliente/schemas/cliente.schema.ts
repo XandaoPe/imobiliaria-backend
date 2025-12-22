@@ -1,7 +1,6 @@
 // src/cliente/schemas/cliente.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { Empresa } from '../../empresa/schemas/empresa.schema';
 
 export type ClienteDocument = Cliente & Document;
 
