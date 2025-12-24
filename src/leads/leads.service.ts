@@ -57,14 +57,14 @@ export class LeadsService {
             // Mesclamos a busca na query principal
             return this.leadModel
                 .find({ ...query, ...searchFilter })
-                .populate('imovel', 'titulo valor fotos')
+                .populate('imovel', 'titulo aluguel valor fotos')
                 .sort({ createdAt: -1 })
                 .exec();
         }
 
         return this.leadModel
             .find(query)
-            .populate('imovel', 'titulo valor fotos')
+            .populate('imovel', 'titulo aluguel valor fotos')
             .sort({ createdAt: -1 })
             .exec();
     }

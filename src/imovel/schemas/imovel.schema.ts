@@ -22,8 +22,11 @@ export class Imovel {
     @Prop({ required: true })
     endereco: string;
 
-    @Prop({ required: true })
-    valor: number;
+    @Prop({ default: 0 })
+    valor?: number;
+
+    @Prop({ default: 0 })
+    aluguel?: number;
 
     // === CAMPOS OBRIGATÓRIOS DO PASSO 1 ===
     @Prop({ default: false })

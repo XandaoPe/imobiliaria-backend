@@ -32,14 +32,16 @@ export class ImovelService {
     // 1. CRIAÇÃO: Adiciona o empresaId do token
     async create(createImovelDto: CreateImovelDto, empresaId: string): Promise<Imovel> {
 
+        
         // ⭐️ Aplica a validação
         const empresaObjectId = this.validateAndConvertId(empresaId, 'ID da Empresa');
-
+        
         const createdImovel = new this.imovelModel({
             ...createImovelDto,
             empresa: empresaObjectId,
         });
-
+        
+        console.log('createImovelDto:', createImovelDto);
         return createdImovel.save();
     }
 
@@ -90,6 +92,7 @@ export class ImovelService {
                 titulo: 1,
                 tipo: 1,
                 endereco: 1,
+                aluguel: 1,
                 valor: 1,
                 disponivel: 1,
                 cidade: 1,
@@ -149,6 +152,7 @@ export class ImovelService {
                 titulo: 1,
                 tipo: 1,
                 endereco: 1,
+                aluguel: 1,
                 valor: 1,
                 disponivel: 1,
                 cidade: 1,

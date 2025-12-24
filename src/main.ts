@@ -54,7 +54,11 @@ async function bootstrap() {
   });
 
   // 1. Configuração Global (Validation Pipe)
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,       // Remove campos que não estão no DTO
+    transform: true,       // Converte tipos automaticamente (ex: string '1' para number 1)
+    forbidNonWhitelisted: false,
+  }));
 
   // 2. Configuração do Swagger
   const config = new DocumentBuilder()

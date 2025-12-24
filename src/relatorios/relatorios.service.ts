@@ -62,7 +62,7 @@ export class RelatoriosService {
                     { fotos: { $size: 0 } },
                 ],
             })
-                .select('titulo endereco fotos valor')
+                .select('titulo endereco fotos aluguel valor tipo')
                 .exec();
         } catch (error) {
             throw new InternalServerErrorException('Erro ao buscar imóveis sem foto.');

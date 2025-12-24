@@ -1,28 +1,30 @@
-import { IsString, IsNotEmpty, IsNumber, IsEnum, IsBoolean, IsOptional, Min, IsInt } from 'class-validator';
+import { IsString, IsNotEmpty, IsEnum, IsOptional, IsNumber, IsBoolean, Min } from 'class-validator';
 import { TipoImovel } from '../schemas/imovel.schema';
-import { Transform } from 'class-transformer';
 
 export class CreateImovelDto {
-    // === CAMPOS OBRIGATÓRIOS ===
     @IsString()
-    @IsNotEmpty()
+    @IsNotEmpty({ message: 'O título é obrigatório' })
     titulo: string;
 
-    @Transform(({ value }) => String(value).toUpperCase())
-    @IsEnum(TipoImovel, { message: `Tipo de imóvel deve ser um dos seguintes: ${Object.values(TipoImovel).join(', ')}` })
-    @IsNotEmpty()
+    @IsEnum(TipoImovel, { message: 'Tipo de imóvel inválido' })
+    @IsNotEmpty({ message: 'O tipo é obrigatório' })
     tipo: TipoImovel;
 
     @IsString()
-    @IsNotEmpty()
+    @IsNotEmpty({ message: 'O endereço é obrigatório' })
     endereco: string;
 
-    @IsNumber()
-    @Min(0)
-    @IsNotEmpty()
-    valor: number;
+    @IsString()
+    @IsNotEmpty({ message: 'A cidade é obrigatória' })
+    cidade: string;
 
-    // === CAMPOS OPCIONAIS (Garantindo que venham como null se vazios) ===
+    @IsNumber()
+    @IsOptional()
+    valor?: number;
+
+    @IsNumber()
+    @IsOptional()
+    aluguel?: number;
 
     @IsBoolean()
     @IsOptional()
@@ -30,59 +32,29 @@ export class CreateImovelDto {
 
     @IsString()
     @IsOptional()
-    // ⭐️ CORREÇÃO: Transforma string vazia para null (para consistência)
-    @Transform(({ value }) => (value === '' ? null : value))
-    cidade?: string | null;
+    descricao?: string;
 
     @IsString()
     @IsOptional()
-    @Transform(({ value }) => (value === '' ? null : value))
-    descricao?: string | null;
+    detalhes?: string;
 
-    @IsString()
+    @IsNumber()
     @IsOptional()
-    @Transform(({ value }) => (value === '' ? null : value))
-    detalhes?: string | null;
+    quartos?: number;
 
-    @IsInt() // Garante que seja um número inteiro
+    @IsNumber()
     @IsOptional()
-    @Min(0)
-    @Transform(({ value }) => {
-        // Se for string vazia, undefined ou null, retorna null
-        if (value === '' || value === undefined || value === null) return null;
-        // Se for uma string de número ('1', '2', etc.) ou um número, converte para número
-        return Number(value);
-    })
-    quartos?: number | null;
+    banheiros?: number;
 
-    @IsInt()
+    @IsNumber()
     @IsOptional()
-    @Min(0)
-    @Transform(({ value }) => {
-        if (value === '' || value === undefined || value === null) return null;
-        return Number(value);
-    })
-    banheiros?: number | null;
+    area_terreno?: number;
 
-    @IsInt()
+    @IsNumber()
     @IsOptional()
-    @Min(0)
-    @Transform(({ value }) => {
-        if (value === '' || value === undefined || value === null) return null;
-        return Number(value);
-    })
-    area_terreno?: number | null;
-
-    @IsInt()
-    @IsOptional()
-    @Min(0)
-    @Transform(({ value }) => {
-        if (value === '' || value === undefined || value === null) return null;
-        return Number(value);
-    })
-    area_construida?: number | null;
+    area_construida?: number;
 
     @IsBoolean()
     @IsOptional()
-    garagem?: boolean; // O frontend já envia true/false
+    garagem?: boolean;
 }
