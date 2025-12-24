@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional, IsNumber, IsBoolean, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsEnum, IsOptional, IsNumber, IsBoolean, Min, ValidateIf } from 'class-validator';
 import { TipoImovel } from '../schemas/imovel.schema';
 
 export class CreateImovelDto {
@@ -18,13 +18,28 @@ export class CreateImovelDto {
     @IsNotEmpty({ message: 'A cidade é obrigatória' })
     cidade: string;
 
-    @IsNumber()
+    // ⭐️ CAMPOS DE CHECKBOX
+    @IsBoolean()
     @IsOptional()
-    valor?: number;
+    para_venda?: boolean;
 
-    @IsNumber()
+    @IsBoolean()
     @IsOptional()
-    aluguel?: number;
+    para_aluguel?: boolean;
+
+    // ⭐️ VALOR DE VENDA (obrigatório apenas se para_venda = true)
+    @IsNumber()
+    @Min(0, { message: 'O valor de venda deve ser maior ou igual a 0' })
+    @ValidateIf((o) => o.para_venda === true)
+    @IsNotEmpty({ message: 'Valor de venda é obrigatório quando "Para Venda" está marcado' })
+    valor_venda?: number;
+
+    // ⭐️ VALOR DE ALUGUEL (obrigatório apenas se para_aluguel = true)
+    @IsNumber()
+    @Min(0, { message: 'O valor de aluguel deve ser maior ou igual a 0' })
+    @ValidateIf((o) => o.para_aluguel === true)
+    @IsNotEmpty({ message: 'Valor de aluguel é obrigatório quando "Para Aluguel" está marcado' })
+    valor_aluguel?: number;
 
     @IsBoolean()
     @IsOptional()

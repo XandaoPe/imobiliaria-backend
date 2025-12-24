@@ -92,8 +92,11 @@ export class ImovelService {
                 titulo: 1,
                 tipo: 1,
                 endereco: 1,
-                aluguel: 1,
-                valor: 1,
+                // ⭐️ REMOVA OS CAMPOS ANTIGOS E ADICIONE OS NOVOS
+                para_venda: 1,
+                para_aluguel: 1,
+                valor_venda: 1,
+                valor_aluguel: 1,
                 disponivel: 1,
                 cidade: 1,
                 descricao: 1,
@@ -104,7 +107,7 @@ export class ImovelService {
                 area_terreno: 1,
                 area_construida: 1,
                 garagem: 1,
-                empresa: '$empresa_info', 
+                empresa: '$empresa_info',
             }
         });
 
@@ -152,8 +155,11 @@ export class ImovelService {
                 titulo: 1,
                 tipo: 1,
                 endereco: 1,
-                aluguel: 1,
-                valor: 1,
+                // ⭐️ REMOVA OS CAMPOS ANTIGOS E ADICIONE OS NOVOS
+                para_venda: 1,
+                para_aluguel: 1,
+                valor_venda: 1,
+                valor_aluguel: 1,
                 disponivel: 1,
                 cidade: 1,
                 descricao: 1,
