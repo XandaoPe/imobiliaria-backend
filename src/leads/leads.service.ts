@@ -25,10 +25,17 @@ export class LeadsService {
     }
 
     async create(createLeadDto: CreateLeadDto): Promise<Lead> {
-        const novoLead = new this.leadModel(createLeadDto);
+        // Garantimos que os IDs sejam tratados como ObjectIds do MongoDB
+        const leadData = {
+            ...createLeadDto,
+            imovel: new Types.ObjectId(createLeadDto.imovel),
+            empresa: new Types.ObjectId(createLeadDto.empresa),
+        };
+
+        const novoLead = new this.leadModel(leadData);
         return novoLead.save();
     }
-
+    
     async findAllByEmpresa(empresaId: string, search?: string, status?: string): Promise<Lead[]> {
         const query: any = {
             // Esta condição aceita se "empresa" for o ID direto OU se for o objeto contendo o ID

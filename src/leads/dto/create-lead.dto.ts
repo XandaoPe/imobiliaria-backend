@@ -1,6 +1,19 @@
+import { IsNotEmpty, IsString } from 'class-validator';
+
 export class CreateLeadDto {
+    @IsString()
+    @IsNotEmpty({ message: 'O nome é obrigatório' })
     nome: string;
+
+    @IsString()
+    @IsNotEmpty({ message: 'O contato é obrigatório' })
     contato: string;
-    imovel: string; // ID do Imóvel
-    empresa: string; // ID da Empresa (Imobiliária)
+
+    @IsString()
+    @IsNotEmpty({ message: 'O ID do imóvel é obrigatório' })
+    imovel: string;
+
+    @IsString()
+    @IsNotEmpty({ message: 'O ID da empresa é obrigatório' })
+    empresa: string;
 }
