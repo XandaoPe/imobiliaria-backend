@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 async function migrateImoveis() {
   try {
     await mongoose.connect(
-      'mongodb+srv://alexandredellanno:Xela-2208@cluster0.gaixo.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0',
+      '',
     );
 
     const result = await mongoose.connection.collection('imovels').updateMany(

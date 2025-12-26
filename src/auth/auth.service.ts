@@ -121,9 +121,9 @@ export class AuthService {
                 throw new ConflictException('Uma empresa com este CNPJ já está registrada.');
             }
             const existingUsuario = await this.usuarioModel.findOne({ email: dto.email }).session(session).exec();
-            if (existingUsuario) {
-                throw new ConflictException('Este email já está sendo utilizado por outro usuário (mesmo em outra empresa).');
-            }
+            // if (existingUsuario) {
+            //     throw new ConflictException('Este email já está sendo utilizado por outro usuário (mesmo em outra empresa).');
+            // }
 
             const hashedPassword = await bcrypt.hash(dto.senha, saltOrRounds);
 
