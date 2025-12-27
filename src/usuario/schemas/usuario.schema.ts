@@ -32,9 +32,8 @@ export class Usuario {
     @Prop({ default: true })
     ativo: boolean;
 
-    // Adicione no Prop do seu Schema
-    @Prop({ type: String, default: null })
-    pushToken: string;
+    @Prop({ type: [String], default: [] })
+    pushToken: string[];
 }
 
 export const UsuarioSchema = SchemaFactory.createForClass(Usuario);

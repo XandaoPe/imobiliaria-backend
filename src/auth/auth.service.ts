@@ -97,14 +97,22 @@ export class AuthService {
         return result;
     }
 
-    async login(usuario: any) {
+    async login(usuario: any, pushToken?: string) {
         const payload = {
             nome: usuario.nome,
             email: usuario.email,
-            sub: usuario._id.toString(), // _id como string
+            sub: usuario._id.toString(),
             perfil: usuario.perfil,
-            empresaId: usuario.empresa.toString(), // Empresa ID garantida como string
+            empresaId: usuario.empresa.toString(),
         };
+
+        // Salva o token no array usando $addToSet (Opção A)
+        if (pushToken) {
+            await this.usuarioModel.findByIdAndUpdate(
+                usuario._id,
+                { $addToSet: { pushToken: pushToken } }
+            );
+        }
 
         return {
             access_token: this.jwtService.sign(payload),

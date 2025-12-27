@@ -15,27 +15,25 @@ export class AuthController {
     @Post('login')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Realiza o login. Retorna lista de empresas se o ID não for fornecido.' })
-    async login(@Body() body: AuthLoginDto) {
+    async login(@Body() body: AuthLoginDto & { pushToken?: string }) { // 👈 Adicionamos o pushToken aqui
         try {
             const result = await this.authService.validateUser(
                 body.email,
                 body.senha,
-                body.empresaId // Passa o ID, pode ser undefined/nulo na Etapa 1
+                body.empresaId
             );
 
-            // ⭐️ VERIFICAÇÃO CHAVE: Se o resultado pedir seleção, retorna a lista de empresas
             if (result.requiresSelection) {
                 return {
                     requiresSelection: true,
                     empresas: result.empresas,
-                    // Poderia retornar um token de sessão aqui para evitar re-enviar Email/Senha
                 };
             }
 
-            // Se não pedir seleção, retorna o Token JWT (Etapa 2 finalizada)
-            return this.authService.login(result);
+            // ⭐️ AGORA PASSAMOS O PUSHTOKEN PARA O SERVICE
+            // O body.pushToken vem lá do seu componente de login no React/Vercel
+            return this.authService.login(result, body.pushToken);
         } catch (error) {
-            // ... (tratamento de erros permanece igual) ...
             if (error instanceof UnauthorizedException) {
                 throw error;
             }
