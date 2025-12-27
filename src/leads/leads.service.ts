@@ -50,20 +50,25 @@ export class LeadsService {
      * Lógica isolada para buscar corretores e enviar push
      */
     private async notificarCorretores(lead: Lead): Promise<void> {
-        // Busca usuários da empresa que são CORRETORES ou GERENTES e que têm pushToken
+        // 1. Busca usuários que têm pelo menos um token no array
         const destinatarios = await this.usuarioModel.find({
             empresa: lead.empresa,
-            pushToken: { $exists: true, $ne: "" },
+            // Verifica se o array existe e não está vazio
+            pushToken: { $exists: true, $not: { $size: 0 } },
             perfil: { $in: [PerfisEnum.CORRETOR, PerfisEnum.GERENTE] }
         });
 
         destinatarios.forEach(corretor => {
-            this.notificacaoService.sendPush(
-                corretor.pushToken,
-                "🎯 Novo Lead!",
-                `${lead.nome} tem interesse em um imóvel.`,
-                { leadId: lead['_id'].toString() }
-            );
+            // Se o seu NotificacaoService já aceita string[], o erro sumirá.
+            // Se ele ainda espera string, você deve iterar sobre os tokens do corretor:
+            corretor.pushToken.forEach(token => {
+                this.notificacaoService.sendPush(
+                    token,
+                    "🎯 Novo Lead!",
+                    `${lead.nome} tem interesse em um imóvel.`,
+                    { leadId: lead['_id'].toString() }
+                );
+            });
         });
     }
 

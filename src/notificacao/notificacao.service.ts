@@ -41,20 +41,32 @@ export class NotificacaoService implements OnModuleInit {
     /**
      * NOVO: Envia Notificação Push via Firebase Cloud Messaging
      */
-    async sendPush(token: string, title: string, body: string, data?: any): Promise<void> {
-        if (!token) return;
+    /**
+     * NOVO: Envia Notificação Push para um ou vários dispositivos
+     */
+    async sendPush(
+        tokens: string | string[],
+        title: string,
+        body: string,
+        data?: any
+    ): Promise<void> {
+        // 1. Normaliza para sempre ser um Array e remove valores vazios
+        const tokenArray = Array.isArray(tokens) ? tokens : [tokens];
+        const validTokens = tokenArray.filter(t => !!t && t !== "");
+
+        if (validTokens.length === 0) return;
 
         try {
-            await admin.messaging().send({
+            // 2. Usamos sendEachForMulticast para enviar para o array de tokens
+            const response = await admin.messaging().sendEachForMulticast({
+                tokens: validTokens, // Agora o TS aceita, pois este método espera 'tokens'
                 notification: { title, body },
-                token: token,
                 data: data || {},
-                // Adicione isto para melhor suporte a navegadores (Web Push)
                 webpush: {
                     notification: {
-                        icon: '/logo192.png', // Substitua pelo seu ícone
+                        icon: '/logo192.png',
                         badge: '/logo192.png',
-                        click_action: 'https://seu-front.vercel.app/leads' // URL para onde o usuário vai ao clicar
+                        // Substitua pela URL real do seu front na Vercel
                     },
                     fcmOptions: {
                         link: 'https://seu-front.vercel.app/leads'
@@ -63,9 +75,12 @@ export class NotificacaoService implements OnModuleInit {
                 android: { priority: 'high' },
                 apns: { payload: { aps: { sound: 'default' } } }
             });
-            console.log(`Push enviado com sucesso.`);
+
+            console.log(`✅ Push processado: ${response.successCount} sucessos, ${response.failureCount} falhas.`);
+
+            // Dica: Se quiser limpar tokens inválidos do banco, você analisaria response.responses aqui
         } catch (error) {
-            console.error('Erro ao enviar push:', error);
+            console.error('❌ Erro crítico ao enviar push multicast:', error);
         }
     }
 
