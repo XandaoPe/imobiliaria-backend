@@ -1,5 +1,5 @@
 // src/usuario/usuario.controller.ts
-import { Controller, Get, Post, Body, Param, Delete, Put, HttpCode, HttpStatus, UseGuards, Req, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Put, HttpCode, HttpStatus, UseGuards, Req, Query, Patch, ForbiddenException } from '@nestjs/common';
 import { UsuarioService } from './usuario.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
@@ -61,6 +61,26 @@ export class UsuarioController {
   @ApiOperation({ summary: 'Busca um Usuário por ID (Multitenancy).' })
   findOne(@Param('id') id: string, @Req() req: RequestWithUser): Promise<Usuario> {
     return this.usuarioService.findOne(id, req.user.empresa);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Atualiza dados parciais do usuário (como pushToken).' })
+  async updatePartial(
+    @Param('id') id: string,
+    @Body() updateUsuarioDto: UpdateUsuarioDto,
+    @Req() req: RequestWithUser,
+  ): Promise<Usuario> {
+    const isAdmin = ROLES_ADMIN.includes(req.user.perfil);
+
+    // ⭐️ AJUSTE AQUI: Usando 'userId' conforme definido na sua interface UsuarioPayload
+    const usuarioLogadoId = req.user.userId;
+
+    // Se não for admin e o ID da URL for diferente do ID do token, bloqueia
+    if (!isAdmin && usuarioLogadoId !== id) {
+      throw new ForbiddenException('Você só pode atualizar seu próprio perfil.');
+    }
+
+    return this.usuarioService.update(id, updateUsuarioDto, req.user.empresa);
   }
 
   // PUT /usuarios/:id (Acesso restrito: ADM_GERAL e GERENTE)

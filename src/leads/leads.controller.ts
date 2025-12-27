@@ -7,21 +7,17 @@ import { AuthGuard } from '@nestjs/passport';
 export class LeadsController {
     constructor(private readonly leadsService: LeadsService) { }
 
-    // ROTA PRIVADA: Apenas contagem de leads novos (Rápida e leve)
     @UseGuards(AuthGuard('jwt'))
     @Get('count')
     async obterContagem(@Request() req) {
-        // req.user.empresa extraído do token JWT
         return this.leadsService.countNovos(req.user.empresa);
     }
 
-    // ROTA PÚBLICA: Visitante envia o interesse
     @Post('publico')
     async criar(@Body() createLeadDto: CreateLeadDto) {
         return this.leadsService.create(createLeadDto);
     }
 
-    // ROTA PRIVADA: Imobiliária vê seus leads
     @UseGuards(AuthGuard('jwt'))
     @Get()
     async listar(
@@ -29,11 +25,9 @@ export class LeadsController {
         @Query('search') search?: string,
         @Query('status') status?: string
     ) {
-        // Verifique no console se esses dados chegam ao chamar a rota
         return this.leadsService.findAllByEmpresa(req.user.empresa, search, status);
     }
 
-    // ROTA PRIVADA: Mudar status do lead (ex: 'EM ATENDIMENTO')
     @UseGuards(AuthGuard('jwt'))
     @Patch(':id/status')
     async atualizarStatus(@Param('id') id: string, @Body('status') status: string) {
@@ -45,5 +39,20 @@ export class LeadsController {
     async obterEstatisticas(@Request() req) {
         return this.leadsService.getDashboardStats(req.user.empresa);
     }
-    
+
+    /**
+     * WEBHOOK CORRIGIDO
+     * Não precisamos injetar usuarioService aqui, pois o LeadsService.create 
+     * já faz o disparo das notificações que configuramos no passo anterior.
+     */
+    @Post('webhook/zap')
+    async receberLeadZap(@Body() data: any) {
+        // Mapeia os dados do portal para o formato que o seu Service espera
+        return this.leadsService.create({
+            nome: data.contact?.name || data.lead?.name || 'Lead sem nome',
+            contato: data.contact?.email || data.lead?.email || data.contact?.phone,
+            empresa: data.empresaId, // ID que você configurará na URL do webhook no portal
+            imovel: data.imovelId,   // ID do imóvel vindo do portal
+        });
+    }
 }
