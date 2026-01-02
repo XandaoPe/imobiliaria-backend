@@ -73,29 +73,31 @@ export class LeadsService {
     }
 
     async findAllByEmpresa(empresaId: string, search?: string, status?: string): Promise<Lead[]> {
+        // 1. Base da query com a empresa
         const query: any = this.getEmpresaQuery(empresaId);
 
+        // 2. Lógica de Filtro Múltiplo de Status
         if (status && status !== 'TODOS') {
-            query.status = status;
+            // Se houver vírgula (ex: "NOVO,EM_ANDAMENTO"), vira array. 
+            // Se for um status único (ex: "CONCLUIDO"), também funciona como array de um item.
+            const statusArray = status.split(',');
+            query.status = { $in: statusArray };
         }
 
+        // 3. Lógica de Busca por Texto
+        let searchFilter = {};
         if (search && search.trim() !== '') {
-            const searchFilter = {
+            searchFilter = {
                 $or: [
                     { nome: { $regex: search, $options: 'i' } },
                     { contato: { $regex: search, $options: 'i' } }
                 ]
             };
-            // Combina a query da empresa com o filtro de busca
-            return this.leadModel
-                .find({ $and: [query, searchFilter] })
-                .populate('imovel', 'titulo aluguel valor fotos')
-                .sort({ createdAt: -1 })
-                .exec();
         }
 
+        // 4. Execução da Query unificada
         return this.leadModel
-            .find(query)
+            .find({ ...query, ...searchFilter }) // Combina os objetos de filtro
             .populate('imovel', 'titulo aluguel valor fotos')
             .sort({ createdAt: -1 })
             .exec();
