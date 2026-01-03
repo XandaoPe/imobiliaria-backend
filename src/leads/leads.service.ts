@@ -97,12 +97,12 @@ export class LeadsService {
 
         // 4. Execução da Query unificada
         return this.leadModel
-            .find({ ...query, ...searchFilter }) // Combina os objetos de filtro
-            .populate('imovel', 'titulo aluguel valor fotos')
+            .find({ ...query, ...searchFilter })
+            .populate('imovel', 'titulo endereco cidade para_venda para_aluguel valor_venda valor_aluguel fotos')
             .sort({ createdAt: -1 })
             .exec();
     }
-
+    
     async countNovos(empresaId: string): Promise<{ count: number }> {
         const query = {
             status: 'NOVO',
