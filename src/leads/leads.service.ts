@@ -135,4 +135,22 @@ export class LeadsService {
 
         return { total, novos, emAtendimento, encerrados };
     }
+
+    async adicionarHistorico(id: string, anotacao: { descricao: string, autor: string }): Promise<Lead> {
+        const lead = await this.leadModel.findByIdAndUpdate(
+            id,
+            {
+                $push: {
+                    historico: {
+                        ...anotacao,
+                        data: new Date()
+                    }
+                }
+            },
+            { new: true }
+        ).exec();
+
+        if (!lead) throw new NotFoundException('Lead não encontrado');
+        return lead;
+    }
 }

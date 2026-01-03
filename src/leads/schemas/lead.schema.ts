@@ -1,6 +1,17 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
+export class Historico {
+    @Prop({ default: Date.now })
+    data: Date;
+
+    @Prop({ required: true })
+    descricao: string;
+
+    @Prop()
+    autor: string; // Nome do corretor que anotou
+}
+
 @Schema({ timestamps: true })
 export class Lead extends Document {
     @Prop({ required: true })
@@ -20,6 +31,9 @@ export class Lead extends Document {
         enum: ['NOVO', 'EM_ANDAMENTO', 'CONCLUIDO']
     })
     status: string;
+
+    @Prop({ type: [Object], default: [] })
+    historico: Historico[];
 }
 
 export const LeadSchema = SchemaFactory.createForClass(Lead);

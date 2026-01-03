@@ -55,4 +55,18 @@ export class LeadsController {
             imovel: data.imovelId,   // ID do imóvel vindo do portal
         });
     }
+
+    @UseGuards(AuthGuard('jwt'))
+    @Post(':id/historico')
+    async addHistorico(
+        @Param('id') id: string,
+        @Body() anotacao: { descricao: string },
+        @Request() req
+    ) {
+        // Pegamos o nome do usuário do token JWT para salvar quem fez a anotação
+        return this.leadsService.adicionarHistorico(id, {
+            descricao: anotacao.descricao,
+            autor: req.user.nome || 'Sistema'
+        });
+    }
 }
