@@ -9,13 +9,13 @@ export class Cliente {
     @Prop({ required: true })
     nome: string;
 
-    @Prop({ required: true, unique: true })
+    @Prop({ required: true, })
     cpf: string;
 
     @Prop()
     telefone: string;
 
-    @Prop({ required: true, unique: true })
+    @Prop({ required: true })
     email: string;
 
     @Prop({ default: 'ATIVO', enum: ['ATIVO', 'INATIVO'] })

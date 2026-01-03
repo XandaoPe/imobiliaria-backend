@@ -21,6 +21,7 @@ import { ContratoModule } from './contrato/contrato.module';
 import { RelatoriosModule } from './relatorios/relatorios.module';
 import { NotificacaoModule } from './notificacao/notificacao.module';
 import { LeadsModule } from './leads/leads.module';
+import { NegociacaoModule } from './negociacao/negociacao.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { LeadsModule } from './leads/leads.module';
     RelatoriosModule,
     NotificacaoModule,
     LeadsModule,
+    NegociacaoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

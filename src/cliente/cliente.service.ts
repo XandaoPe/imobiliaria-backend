@@ -21,7 +21,7 @@ export class ClienteService {
         });
 
         try {
-            return createdCliente.save();
+            return await createdCliente.save();
         } catch (error) {
             // Tratamento de erro de duplicação para CPF/Email dentro da empresa
             if (error.code === 11000) {
