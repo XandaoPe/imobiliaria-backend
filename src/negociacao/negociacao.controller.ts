@@ -27,27 +27,39 @@ export class NegociacaoController {
         return this.negociacaoService.findAll(req.user.empresa);
     }
 
-    @Patch(':id') // Removi o /status daqui
-    @ApiOperation({ summary: 'Atualiza status e adiciona histórico em uma única chamada' })
+    @Patch(':id')
     async update(
         @Param('id') id: string,
-        @Body() body: { status?: StatusNegociacao; descricao?: string },
-        @Req() req: RequestWithUser
+        @Body() body: { status?: StatusNegociacao; descricao?: string; dataAgendamento?: string },
+        @Req() req: RequestWithUser // 👈 Use a interface tipada aqui
     ) {
         const empresaId = req.user.empresa;
-        const usuarioNome = req.user.nome || 'Corretor';
+        const usuarioPayload = req.user;
+        const usuarioNome = req.user.nome || 'Sistema'; // 👈 DECLARAÇÃO DA VARIÁVEL
 
-        // Se veio status no corpo da requisição, chama o service de status
+        // 1. Se houver mudança de status
         if (body.status) {
-            await this.negociacaoService.updateStatus(id, body.status, empresaId);
+            await this.negociacaoService.updateStatus(
+                id,
+                body.status,
+                empresaId,
+                usuarioPayload,
+                body.dataAgendamento
+            );
         }
 
-        // Se veio descrição, chama o service de histórico
+        // 2. Se houver uma descrição (anotação), adicionamos ao histórico
         if (body.descricao) {
-            return await this.negociacaoService.addHistorico(id, empresaId, body.descricao, usuarioNome);
+            return await this.negociacaoService.addHistorico(
+                id,
+                empresaId,
+                body.descricao,
+                usuarioNome
+            );
         }
 
-        return { message: 'Negociação atualizada' };
+        // 3. Caso mude apenas o status, retornamos a lista ou a negociação atualizada
+        return this.negociacaoService.findAll(empresaId);
     }
 
     @Post(':id/historico')

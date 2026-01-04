@@ -38,12 +38,11 @@ export class Agendamento {
     dataHora: Date;
 
     // ⭐️ STATUS DO AGENDAMENTO
-    @Prop({ required: true, enum: StatusAgendamento, default: StatusAgendamento.PENDENTE })
+    @Prop({ required: true, default: 'PENDENTE' })
     status: StatusAgendamento;
+
+    @Prop({ type: String, default: '' })
+    observacoes: string;
 }
 
 export const AgendamentoSchema = SchemaFactory.createForClass(Agendamento);
-
-// Adicionamos um índice composto para garantir que não haja dois agendamentos
-// em horários sobrepostos para o mesmo imóvel (ou corretor)
-AgendamentoSchema.index({ dataHora: 1, imovel: 1, empresa: 1 }, { unique: true });

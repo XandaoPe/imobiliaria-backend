@@ -4,12 +4,15 @@ import { Model, Types } from 'mongoose';
 import { Negociacao, NegociacaoDocument, StatusNegociacao } from './schemas/negociacao.schema';
 import { CreateNegociacaoDto } from './dto/create-negociacao.dto';
 import { ImovelService } from 'src/imovel/imovel.service';
+import { AgendamentoService } from 'src/agendamento/agendamento.service';
+import { StatusAgendamento } from 'src/agendamento/schemas/agendamento.schema';
 
 @Injectable()
 export class NegociacaoService {
     constructor(
         @InjectModel(Negociacao.name) private negociacaoModel: Model<NegociacaoDocument>,
         private imovelService: ImovelService, // Precisamos injetar para mudar o status do imóvel
+        private agendamentoService: AgendamentoService,
     ) { }
 
     async create(dto: CreateNegociacaoDto, empresaId: string, usuarioNome: string): Promise<Negociacao> {
@@ -45,7 +48,13 @@ export class NegociacaoService {
         );
     }
 
-    async updateStatus(negociacaoId: string, novoStatus: StatusNegociacao, empresaId: string) {
+    async updateStatus(
+        negociacaoId: string,
+        novoStatus: StatusNegociacao,
+        empresaId: string,
+        usuarioPayload: any, // 👈 Precisamos do payload do usuário (ID e Empresa)
+        dataAgendamento?: string // 👈 Opcional, vindo do front
+    ) {
         const negociacao = await this.negociacaoModel.findOne({
             _id: negociacaoId,
             empresa: new Types.ObjectId(empresaId)
@@ -53,7 +62,27 @@ export class NegociacaoService {
 
         if (!negociacao) throw new NotFoundException('Negociação não encontrada');
 
+        // ⭐️ LÓGICA DE AGENDAMENTO AUTOMÁTICO
+        if (novoStatus === 'VISITA') {
+            if (!dataAgendamento) {
+                throw new BadRequestException('Para mudar para Visita Agendada, é necessário informar a data e hora.');
+            }
+
+            await this.agendamentoService.create({
+                imovelId: negociacao.imovel.toString(),
+                clienteId: negociacao.cliente.toString(),
+                dataHora: dataAgendamento,
+                status: StatusAgendamento.PENDENTE
+            }, usuarioPayload); // Passamos o payload para o multitenancy funcionar
+        }
+
         negociacao.status = novoStatus;
+
+        negociacao.historico.push({
+            descricao: `Status alterado para: ${novoStatus}`,
+            usuario_nome: usuarioPayload.nome || 'Sistema',
+            data: new Date()
+        });
 
         // Se a negociação for CONCLUÍDA, desativa o imóvel
         if (novoStatus === StatusNegociacao.ASSINADO || novoStatus === StatusNegociacao.FECHADO) {
