@@ -26,11 +26,12 @@ export class AgendamentoController {
 
     @Get('check-disponibilidade')
     @Roles(...ROLES_ACESS)
-    async check(@Query('data') data: string, @Query('imovelId') imovelId: string) {
-        const conflito = await this.agendamentoService.findByDateAndImovel(data, imovelId);
+    async check(@Query('data') data: string, @Req() req: RequestWithUser) {
+        // Removemos o imovelId da query, pois validamos o corretor logado
+        const conflito = await this.agendamentoService.findByDateAndUser(data, req.user.userId);
         return {
             disponivel: !conflito,
-            mensagem: conflito ? 'Este horário já está ocupado para este imóvel.' : 'Horário livre.'
+            mensagem: conflito ? 'Você já tem uma visita agendada para este horário.' : 'Horário livre na sua agenda.'
         };
     }
 
@@ -44,15 +45,17 @@ export class AgendamentoController {
     @Get()
     @Roles(...ROLES_ACESS)
     findAll(@Req() req: RequestWithUser) {
-        return this.agendamentoService.findAll(req.user.empresa);
+        // Passamos o usuário completo para o service decidir o filtro
+        return this.agendamentoService.findAll(req.user);
     }
 
     @Get('horarios-ocupados')
     @Roles(...ROLES_ACESS)
-    async getOcupados(@Query('imovelId') imovelId: string, @Query('data') data: string) {
-        return this.agendamentoService.findHorariosOcupados(imovelId, data);
+    async getOcupados(@Query('data') data: string, @Req() req: RequestWithUser) {
+        // Busca os horários que o usuário logado está ocupado
+        return this.agendamentoService.findHorariosOcupadosDoUsuario(req.user.userId, data);
     }
-    
+
     @Get(':id')
     @Roles(...ROLES_ACESS)
     findOne(@Param('id') id: string, @Req() req: RequestWithUser) {
@@ -62,19 +65,18 @@ export class AgendamentoController {
     @Put(':id')
     @Roles(...ROLES_ACESS)
     update(@Param('id') id: string, @Body() updateAgendamentoDto: UpdateAgendamentoDto, @Req() req: RequestWithUser) {
-        return this.agendamentoService.update(id, updateAgendamentoDto, req.user.empresa);
+        return this.agendamentoService.update(id, updateAgendamentoDto, req.user);
     }
 
     // ⭐️ ROTA PARA ALTERAR STATUS (CANCELAR/CONCLUIR COM MOTIVO)
     @Patch(':id/status')
     @Roles(...ROLES_ACESS)
-    @ApiOperation({ summary: 'Altera status do agendamento com um motivo.' })
     updateStatus(
         @Param('id') id: string,
         @Body() body: { status: 'CANCELADO' | 'CONCLUIDO', motivo?: string },
         @Req() req: RequestWithUser
     ) {
-        return this.agendamentoService.updateStatus(id, body.status, body.motivo || '', req.user.empresa);
+        return this.agendamentoService.updateStatus(id, body.status, body.motivo || '', req.user);
     }
 
     @Delete(':id')

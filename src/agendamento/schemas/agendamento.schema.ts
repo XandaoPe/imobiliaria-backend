@@ -46,3 +46,10 @@ export class Agendamento {
 }
 
 export const AgendamentoSchema = SchemaFactory.createForClass(Agendamento);
+AgendamentoSchema.index(
+    { imovel: 1, dataHora: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { status: 'PENDENTE' }
+    }
+);
