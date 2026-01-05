@@ -130,26 +130,35 @@ export class UsuarioService {
   }
 
   // ⭐️ REIMPLEMENTADO: Update com Multitenancy
-  async update(usuarioId: string, updateUsuarioDto: UpdateUsuarioDto, empresaId: string): Promise<Usuario> {
+  async update(usuarioId: string, updateUsuarioDto: any, empresaId: string): Promise<Usuario> {
+    const { pushToken, ...dadosRestantes } = updateUsuarioDto;
+
+    // 1. Prepara as atualizações básicas (nome, email, senha...)
+    const updateQuery: any = { $set: dadosRestantes };
+
+    // 2. Se houver senha, faz o hash
+    if (dadosRestantes.senha) {
+      updateQuery.$set.senha = await bcrypt.hash(dadosRestantes.senha, saltOrRounds);
+    }
+
+    // 3. Se houver um pushToken, usamos $addToSet para NÃO apagar os antigos
+    if (pushToken) {
+      updateQuery.$addToSet = { pushToken: pushToken };
+    }
+
     const updatedUsuario = await this.usuarioModel
       .findOneAndUpdate(
         {
-          _id: new Types.ObjectId(usuarioId), // ⭐️ Garanta que é um ObjectId
-          empresa: new Types.ObjectId(empresaId), // ⭐️ Garanta que a empresa também é ObjectId
+          _id: new Types.ObjectId(usuarioId),
+          empresa: new Types.ObjectId(empresaId),
         },
-        {
-          ...updateUsuarioDto,
-          // Garante que a senha só seja atualizada se for fornecida e hasheia antes
-          ...(updateUsuarioDto.senha && {
-            senha: await bcrypt.hash(updateUsuarioDto.senha, saltOrRounds)
-          })
-        },
+        updateQuery,
         { new: true },
       )
       .exec();
 
     if (!updatedUsuario) {
-      throw new NotFoundException(`Usuário com ID "${usuarioId}" não encontrado ou não pertence a esta empresa.`);
+      throw new NotFoundException(`Usuário não encontrado.`);
     }
     return updatedUsuario;
   }

@@ -50,37 +50,31 @@ export class NotificacaoService implements OnModuleInit {
         body: string,
         data?: any
     ): Promise<void> {
-        // 1. Normaliza para sempre ser um Array e remove valores vazios
+        // Normaliza tokens: remove nulos, vazios e garante que é um array único
         const tokenArray = Array.isArray(tokens) ? tokens : [tokens];
-        const validTokens = tokenArray.filter(t => !!t && t !== "");
+        const validTokens = [...new Set(tokenArray.filter(t => !!t))];
 
         if (validTokens.length === 0) return;
 
         try {
-            // 2. Usamos sendEachForMulticast para enviar para o array de tokens
             const response = await admin.messaging().sendEachForMulticast({
-                tokens: validTokens, // Agora o TS aceita, pois este método espera 'tokens'
+                tokens: validTokens,
                 notification: { title, body },
                 data: data || {},
                 webpush: {
                     notification: {
-                        icon: '/logo192.png',
-                        badge: '/logo192.png',
-                        // Substitua pela URL real do seu front na Vercel
+                        icon: 'https://seu-front.vercel.app/logo192.png',
+                        badge: 'https://seu-front.vercel.app/logo192.png',
                     },
-                    fcmOptions: {
-                        link: 'https://seu-front.vercel.app/leads'
-                    }
+                    fcmOptions: { link: 'https://seu-front.vercel.app/leads' }
                 },
-                android: { priority: 'high' },
-                apns: { payload: { aps: { sound: 'default' } } }
             });
 
-            console.log(`✅ Push processado: ${response.successCount} sucessos, ${response.failureCount} falhas.`);
+            console.log(`🚀 Push: ${response.successCount} enviados, ${response.failureCount} falhas.`);
 
-            // Dica: Se quiser limpar tokens inválidos do banco, você analisaria response.responses aqui
+            // Dica: Aqui você poderia remover tokens que retornaram erro 'messaging/registration-token-not-registered'
         } catch (error) {
-            console.error('❌ Erro crítico ao enviar push multicast:', error);
+            console.error('❌ Erro no Firebase Multicast:', error);
         }
     }
 
