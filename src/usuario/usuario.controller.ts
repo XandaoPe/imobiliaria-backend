@@ -63,22 +63,16 @@ export class UsuarioController {
     return this.usuarioService.findOne(id, req.user.empresa);
   }
 
+  // No seu UsuarioController.ts
   @Patch(':id')
   @ApiOperation({ summary: 'Atualiza dados parciais do usuário (como pushToken).' })
   async updatePartial(
     @Param('id') id: string,
-    @Body() updateUsuarioDto: UpdateUsuarioDto,
+    @Body() updateUsuarioDto: UpdateUsuarioDto, // O Nest vai validar se tem pushToken aqui
     @Req() req: RequestWithUser,
   ): Promise<Usuario> {
-    const isAdmin = ROLES_ADMIN.includes(req.user.perfil);
-
-    // ⭐️ AJUSTE AQUI: Usando 'userId' conforme definido na sua interface UsuarioPayload
-    const usuarioLogadoId = req.user.userId;
-
-    // Se não for admin e o ID da URL for diferente do ID do token, bloqueia
-    if (!isAdmin && usuarioLogadoId !== id) {
-      throw new ForbiddenException('Você só pode atualizar seu próprio perfil.');
-    }
+    // LOG PARA DEBUG: Se isso não aparecer no terminal do VSCode, o Front não chamou a API
+    console.log(`Recebendo atualização para o usuário ${id}. Dados:`, updateUsuarioDto);
 
     return this.usuarioService.update(id, updateUsuarioDto, req.user.empresa);
   }
