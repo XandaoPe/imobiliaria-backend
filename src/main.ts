@@ -8,7 +8,6 @@ async function bootstrap() {
   const PORT = process.env.PORT || 5000;
   const app = await NestFactory.create(AppModule);
 
-  // --- CONFIGURAÇÃO DE CORS LIBERADA TOTALMENTE ---
   app.enableCors({
     origin: true, // Permite qualquer origem (*)
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
