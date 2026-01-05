@@ -103,4 +103,5 @@ export class UsuarioController {
   remove(@Param('id') id: string, @Req() req: RequestWithUser): Promise<any> {
     return this.usuarioService.remove(id, req.user.empresa);
   }
+
 }

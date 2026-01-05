@@ -50,34 +50,51 @@ export class NotificacaoService implements OnModuleInit {
         body: string,
         data?: any
     ): Promise<void> {
-        // Normaliza tokens: remove nulos, vazios e garante que é um array único
+        // 1. Limpeza e Unificação: Garante que não enviamos para o mesmo ID de dispositivo duas vezes
         const tokenArray = Array.isArray(tokens) ? tokens : [tokens];
-        const validTokens = [...new Set(tokenArray.filter(t => !!t))];
+        const uniqueTokens = [...new Set(tokenArray.filter(t => !!t && t.length > 10))];
 
-        if (validTokens.length === 0) return;
+        if (uniqueTokens.length === 0) {
+            console.log('ℹ️ Nenhum token de push disponível para este usuário.');
+            return;
+        }
 
         try {
+            // 2. Usamos sendEach para maior controle sobre falhas individuais
             const response = await admin.messaging().sendEachForMulticast({
-                tokens: validTokens,
+                tokens: uniqueTokens,
                 notification: { title, body },
                 data: data || {},
                 webpush: {
                     notification: {
-                        icon: 'https://seu-front.vercel.app/logo192.png',
-                        badge: 'https://seu-front.vercel.app/logo192.png',
+                        title,
+                        body,
+                        icon: 'https://imobiliaria-frontend-six.vercel.app/logo192.png',
+                        badge: 'https://imobiliaria-frontend-six.vercel.app/logo192.png',
+                        tag: 'lead-notification', // Agrupa notificações similares
+                        renotify: true
                     },
-                    fcmOptions: { link: 'https://seu-front.vercel.app/leads' }
+                    fcmOptions: {
+                        link: 'https://imobiliaria-frontend-six.vercel.app/leads'
+                    }
                 },
             });
 
-            console.log(`🚀 Push: ${response.successCount} enviados, ${response.failureCount} falhas.`);
+            console.log(`🚀 Push processado: ${response.successCount} sucessos, ${response.failureCount} falhas.`);
 
-            // Dica: Aqui você poderia remover tokens que retornaram erro 'messaging/registration-token-not-registered'
+            // 3. LOG DE ERRO: Se falhar, precisamos saber o motivo (Ex: Token Expirado)
+            if (response.failureCount > 0) {
+                response.responses.forEach((resp, idx) => {
+                    if (!resp.success) {
+                        console.error(`❌ Erro no token [${uniqueTokens[idx].substring(0, 10)}...]:`, resp.error?.code);
+                    }
+                });
+            }
         } catch (error) {
-            console.error('❌ Erro no Firebase Multicast:', error);
+            console.error('❌ Erro crítico no Firebase:', error);
         }
     }
-
+    
     /**
      * SEU MÉTODO EXISTENTE: Envia e-mail
      */
