@@ -28,6 +28,9 @@ export class LeadsService {
     }
 
     async create(createLeadDto: CreateLeadDto): Promise<Lead> {
+        console.log('📝 Criando lead com dados:', createLeadDto);
+        console.log('🔍 Tipo de empresaId:', typeof createLeadDto.empresa);
+        console.log('🔍 Valor de empresaId:', createLeadDto.empresa);
         // 1. Preparação dos dados com conversão de IDs
         const leadData = {
             ...createLeadDto,
@@ -50,26 +53,62 @@ export class LeadsService {
      * Lógica isolada para buscar corretores e enviar push
      */
     private async notificarCorretores(lead: Lead): Promise<void> {
-        // 1. Busca usuários que têm pelo menos um token no array
-        const destinatarios = await this.usuarioModel.find({
-            empresa: lead.empresa,
-            // Verifica se o array existe e não está vazio
-            pushToken: { $exists: true, $not: { $size: 0 } },
-            perfil: { $in: [PerfisEnum.CORRETOR, PerfisEnum.GERENTE] }
-        });
-
-        destinatarios.forEach(corretor => {
-            // Se o seu NotificacaoService já aceita string[], o erro sumirá.
-            // Se ele ainda espera string, você deve iterar sobre os tokens do corretor:
-            corretor.pushToken.forEach(token => {
-                this.notificacaoService.sendPush(
-                    token,
-                    "🎯 Novo Lead!",
-                    `${lead.nome} tem interesse em um imóvel.`,
-                    { leadId: lead['_id'].toString() }
-                );
+        try {
+            console.log('🔔 Disparando notificação para novo lead:', {
+                leadId: lead._id,
+                nome: lead.nome,
+                empresaId: lead.empresa
             });
-        });
+
+            // 1. Busca usuários da EMPRESA DO LEAD
+            const destinatarios = await this.usuarioModel.find({
+                empresa: new Types.ObjectId(lead.empresa.toString()), // ✅ Converte para ObjectId
+                pushToken: { $exists: true, $not: { $size: 0 } },
+                perfil: { $in: [PerfisEnum.CORRETOR, PerfisEnum.GERENTE, PerfisEnum.ADM_GERAL] } // Inclui ADMs
+            });
+
+            console.log(`📱 ${destinatarios.length} corretores encontrados para notificar`);
+
+            // 2. Coleta todos os tokens únicos
+            const todosTokens: string[] = [];
+            destinatarios.forEach(corretor => {
+                if (corretor.pushToken && Array.isArray(corretor.pushToken)) {
+                    corretor.pushToken.forEach(token => {
+                        if (token && token.length > 10) {
+                            todosTokens.push(token);
+                        }
+                    });
+                }
+            });
+
+            const tokensUnicos = [...new Set(todosTokens)];
+
+            if (tokensUnicos.length === 0) {
+                console.log('⚠️ Nenhum token push encontrado para notificar');
+                return;
+            }
+
+            console.log(`📤 Enviando para ${tokensUnicos.length} token(s) únicos`);
+
+            // 3. Envia notificação para TODOS os tokens
+            await this.notificacaoService.sendPush(
+                tokensUnicos,
+                "🎯 NOVO LEAD CADASTRADO!",
+                `${lead.nome} tem interesse em um imóvel. Contato: ${lead.contato}`,
+                {
+                    leadId: lead._id.toString(),
+                    empresaId: lead.empresa.toString(),
+                    url: '/leads',
+                    type: 'new_lead'
+                }
+            );
+
+            console.log('✅ Notificação enviada com sucesso');
+
+        } catch (error) {
+            console.error('❌ Erro ao notificar corretores:', error);
+            // Não lança erro para não quebrar o fluxo de criação do lead
+        }
     }
 
     async findAllByEmpresa(empresaId: string, search?: string, status?: string): Promise<Lead[]> {
