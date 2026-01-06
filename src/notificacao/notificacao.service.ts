@@ -49,18 +49,15 @@ export class NotificacaoService implements OnModuleInit {
         title: string,
         body: string,
         data?: any
-    ): Promise<void> {
-        // 1. Limpeza e Unificação: Garante que não enviamos para o mesmo ID de dispositivo duas vezes
+    ): Promise<{ success: boolean; message: string }> {
         const tokenArray = Array.isArray(tokens) ? tokens : [tokens];
         const uniqueTokens = [...new Set(tokenArray.filter(t => !!t && t.length > 10))];
 
         if (uniqueTokens.length === 0) {
-            console.log('ℹ️ Nenhum token de push disponível para este usuário.');
-            return;
+            return { success: false, message: 'Nenhum token de push disponível.' };
         }
 
         try {
-            // 2. Usamos sendEach para maior controle sobre falhas individuais
             const response = await admin.messaging().sendEachForMulticast({
                 tokens: uniqueTokens,
                 notification: { title, body },
@@ -71,7 +68,7 @@ export class NotificacaoService implements OnModuleInit {
                         body,
                         icon: 'https://imobiliaria-frontend-six.vercel.app/logo192.png',
                         badge: 'https://imobiliaria-frontend-six.vercel.app/logo192.png',
-                        tag: 'lead-notification', // Agrupa notificações similares
+                        tag: 'lead-notification',
                         renotify: true
                     },
                     fcmOptions: {
@@ -82,7 +79,6 @@ export class NotificacaoService implements OnModuleInit {
 
             console.log(`🚀 Push processado: ${response.successCount} sucessos, ${response.failureCount} falhas.`);
 
-            // 3. LOG DE ERRO: Se falhar, precisamos saber o motivo (Ex: Token Expirado)
             if (response.failureCount > 0) {
                 response.responses.forEach((resp, idx) => {
                     if (!resp.success) {
@@ -90,8 +86,14 @@ export class NotificacaoService implements OnModuleInit {
                     }
                 });
             }
+
+            return {
+                success: response.successCount > 0,
+                message: `${response.successCount} notificações enviadas com sucesso`
+            };
         } catch (error) {
             console.error('❌ Erro crítico no Firebase:', error);
+            return { success: false, message: 'Erro no Firebase: ' + error.message };
         }
     }
     
