@@ -106,11 +106,16 @@ export class AuthService {
             empresaId: usuario.empresa.toString(),
         };
 
-        // Salva o token no array usando $addToSet (Opção A)
+        // ⭐️ MODIFICADO: Remove tokens antigos e adiciona apenas o novo
         if (pushToken) {
             await this.usuarioModel.findByIdAndUpdate(
                 usuario._id,
-                { $addToSet: { pushToken: pushToken } }
+                {
+                    // Remove TODOS os tokens antigos
+                    $set: { pushToken: [] },
+                    // Adiciona apenas o novo token
+                    $addToSet: { pushToken: pushToken }
+                }
             );
         }
 
