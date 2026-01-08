@@ -6,6 +6,7 @@ import { CreateNegociacaoDto } from './dto/create-negociacao.dto';
 import { ImovelService } from 'src/imovel/imovel.service';
 import { AgendamentoService } from 'src/agendamento/agendamento.service';
 import { StatusAgendamento } from 'src/agendamento/schemas/agendamento.schema';
+import { FinanceiroService } from 'src/financeiro/financeiro.service';
 
 @Injectable()
 export class NegociacaoService {
@@ -13,7 +14,30 @@ export class NegociacaoService {
         @InjectModel(Negociacao.name) private negociacaoModel: Model<NegociacaoDocument>,
         private imovelService: ImovelService, // Precisamos injetar para mudar o status do imóvel
         private agendamentoService: AgendamentoService,
+        private financeiroService: FinanceiroService, // ⭐️ Injeção do novo serviço
     ) { }
+
+    async atualizarStatus(id: string, novoStatus: StatusNegociacao, empresaId: string) {
+        // 1. Busca garantindo a empresa (Multitenancy)
+        const negociacao = await this.negociacaoModel.findOne({ _id: id, empresa: new Types.ObjectId(empresaId) }).exec();
+
+        // Correção do erro 'negociacao' é possivelmente 'null'
+        if (!negociacao) {
+            throw new NotFoundException('Negociação não encontrada.');
+        }
+
+        if (novoStatus === StatusNegociacao.FECHADO && negociacao.status !== StatusNegociacao.FECHADO) {
+            // Correção: Agora passando imovelId e empresaId (2 argumentos)
+            const imovel = await this.imovelService.findOne(negociacao.imovel.toString(), empresaId);
+
+            // Dispara a automação financeira. 
+            // O casting 'as any' ou garantir que findOne retorne ImovelDocument resolve o erro de tipo
+            await this.financeiroService.gerarFluxoAluguel(negociacao, imovel as any);
+        }
+
+        negociacao.status = novoStatus;
+        return negociacao.save();
+    }
 
     async create(dto: CreateNegociacaoDto, empresaId: string, usuarioNome: string): Promise<Negociacao> {
         await this.imovelService.findOne(dto.imovel, empresaId);

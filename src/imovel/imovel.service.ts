@@ -177,9 +177,9 @@ export class ImovelService {
     }
 
     // 3. BUSCA ÚNICA: Filtra por ID do Imóvel E ID da Empresa
-    async findOne(imovelId: string, empresaId: string): Promise<Imovel> {
+    // No src/imovel/imovel.service.ts
 
-        // ⭐️ Aplica a validação
+    async findOne(imovelId: string, empresaId: string): Promise<ImovelDocument> { // Mudado para Promise<ImovelDocument>
         const empresaObjectId = this.validateAndConvertId(empresaId, 'ID da Empresa');
         const imovelObjectId = this.validateAndConvertId(imovelId, 'ID do Imóvel');
 
@@ -191,9 +191,9 @@ export class ImovelService {
             .exec();
 
         if (!imovel) {
-            throw new NotFoundException(`Imóvel com ID "${imovelId}" não encontrado ou não pertence a esta empresa.`);
+            throw new NotFoundException(`Imóvel não encontrado.`);
         }
-        return imovel;
+        return imovel; // Retorna o Documento do Mongoose com todas as propriedades
     }
 
     async update(imovelId: string, updateImovelDto: UpdateImovelDto, empresaId: string): Promise<Imovel> {

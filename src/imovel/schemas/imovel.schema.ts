@@ -70,6 +70,9 @@ export class Imovel {
     @Prop({ type: [String], default: [] })
     fotos: string[];
 
+    @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true })
+    proprietario: Types.ObjectId;
+
     @Prop({ type: Types.ObjectId, ref: Empresa.name, required: true })
     empresa: Types.ObjectId;
 }

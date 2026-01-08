@@ -5,12 +5,14 @@ import { Negociacao, NegociacaoSchema } from './schemas/negociacao.schema';
 import { ImovelModule } from '../imovel/imovel.module'; // Importante para o cross-service
 import { NegociacaoController } from './negociacao.controller';
 import { AgendamentoModule } from 'src/agendamento/agendamento.module';
+import { FinanceiroModule } from 'src/financeiro/financeiro.module';
 
 @Module({
     imports: [
         MongooseModule.forFeature([{ name: Negociacao.name, schema: NegociacaoSchema }]),
         ImovelModule, // Permite usar o ImovelService aqui
         AgendamentoModule,
+        FinanceiroModule,
     ],
     controllers: [NegociacaoController],
     providers: [NegociacaoService],
