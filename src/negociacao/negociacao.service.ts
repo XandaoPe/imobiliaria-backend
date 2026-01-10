@@ -18,20 +18,21 @@ export class NegociacaoService {
     ) { }
 
     async atualizarStatus(id: string, novoStatus: StatusNegociacao, empresaId: string) {
-        // 1. Busca garantindo a empresa (Multitenancy)
         const negociacao = await this.negociacaoModel.findOne({ _id: id, empresa: new Types.ObjectId(empresaId) }).exec();
 
-        // Correção do erro 'negociacao' é possivelmente 'null'
         if (!negociacao) {
             throw new NotFoundException('Negociação não encontrada.');
         }
 
         if (novoStatus === StatusNegociacao.FECHADO && negociacao.status !== StatusNegociacao.FECHADO) {
-            // Correção: Agora passando imovelId e empresaId (2 argumentos)
+            // BUSCA O IMÓVEL
             const imovel = await this.imovelService.findOne(negociacao.imovel.toString(), empresaId);
 
-            // Dispara a automação financeira. 
-            // O casting 'as any' ou garantir que findOne retorne ImovelDocument resolve o erro de tipo
+            // VERIFICAÇÃO CRÍTICA: Se o imóvel não tem proprietário, o financeiro vai quebrar
+            if (!imovel || !imovel.proprietario) {
+                throw new BadRequestException('Não é possível fechar a negociação: Imóvel sem proprietário vinculado.');
+            }
+
             await this.financeiroService.gerarFluxoAluguel(negociacao, imovel as any);
         }
 

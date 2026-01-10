@@ -29,11 +29,12 @@ export class FinanceiroService {
         const meses = 12;
 
         for (let i = 0; i < meses; i++) {
+            // 1. CRIAR A VARIÁVEL VENCIMENTO DENTRO DO LOOP
             const vencimento = new Date(negociacao.data_inicio_contrato);
             vencimento.setMonth(vencimento.getMonth() + i);
             vencimento.setDate(negociacao.dia_vencimento_aluguel || 10);
 
-            // 1. Receita do Inquilino
+            // 2. Parcela de Receita (Inquilino -> Imobiliária)
             parcelas.push({
                 empresa: negociacao.empresa,
                 imovel: imovel._id,
@@ -41,26 +42,30 @@ export class FinanceiroService {
                 tipo: TipoLancamento.RECEITA,
                 categoria: CategoriaLancamento.ALUGUEL,
                 valor: negociacao.valor_acordado,
-                dataVencimento: vencimento,
+                dataVencimento: new Date(vencimento), // Usar cópia da data
                 status: 'PENDENTE',
                 parcelaNumero: i + 1,
                 descricao: `Aluguel ${i + 1}/${meses}`,
             });
 
-            // 2. Repasse ao Proprietário
-            parcelas.push({
-                empresa: negociacao.empresa,
-                imovel: imovel._id,
-                cliente: imovel.proprietario,
-                tipo: TipoLancamento.DESPESA,
-                categoria: CategoriaLancamento.REPASSE,
-                valor: negociacao.valor_acordado * 0.9,
-                dataVencimento: vencimento,
-                status: 'PENDENTE',
-                parcelaNumero: i + 1,
-                descricao: `Repasse Aluguel ${i + 1}/${meses}`,
-            });
+            // 3. Parcela de Repasse (Imobiliária -> Proprietário)
+            // Só adiciona se o imóvel tiver proprietário para evitar o erro de validação
+            if (imovel.proprietario) {
+                parcelas.push({
+                    empresa: negociacao.empresa,
+                    imovel: imovel._id,
+                    cliente: imovel.proprietario,
+                    tipo: TipoLancamento.DESPESA,
+                    categoria: CategoriaLancamento.REPASSE,
+                    valor: negociacao.valor_acordado * 0.9,
+                    dataVencimento: new Date(vencimento), // Usar cópia da data
+                    status: 'PENDENTE',
+                    parcelaNumero: i + 1,
+                    descricao: `Repasse Aluguel ${i + 1}/${meses}`,
+                });
+            }
         }
+
         return this.financeiroModel.insertMany(parcelas);
     }
 

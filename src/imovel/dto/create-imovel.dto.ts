@@ -72,4 +72,8 @@ export class CreateImovelDto {
     @IsBoolean()
     @IsOptional()
     garagem?: boolean;
+
+    @IsString()
+    @IsNotEmpty({ message: 'O proprietário é obrigatório' })
+    proprietario: string; // ID do Cliente/Proprietário
 }
