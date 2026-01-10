@@ -105,8 +105,8 @@ export class FinanceiroPdfService {
                 const rodapeY = 720;
 
                 try {
-                    const urlValidacao = `https://imobiliaria-backend-i8ew.onrender.com/financeiro/validar/${lancamento._id}`;
-                    // const urlValidacao = `http://localhost:5000/financeiro/validar/${lancamento._id}`;
+                    const urlValidacao = `https://imobiliaria-frontend-six.vercel.app/financeiro/validar/${lancamento._id}`;
+                    // const urlValidacao = `http://localhost:3000/financeiro/validar/${lancamento._id}`;
                     const qrCodeBase64 = await QRCode.toDataURL(urlValidacao);
                     const qrImage = Buffer.from(qrCodeBase64.split(',')[1], 'base64');
 
