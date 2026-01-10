@@ -1,5 +1,10 @@
-import { Controller, Get, Post, Body, Param, Patch, Req, UseGuards, Query, HttpCode, HttpStatus, Res } from '@nestjs/common';
-import type { Response } from 'express'; 
+// src/financeiro/financeiro.controller.ts
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import {
+    Controller, Get, Post, Body, Param, Patch, Req, UseGuards,
+    Query, HttpCode, HttpStatus, Res, NotFoundException
+} from '@nestjs/common';
+import type { Response } from 'express';
 import { FinanceiroService } from './financeiro.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -9,22 +14,22 @@ import { PerfisEnum } from 'src/usuario/schemas/usuario.schema';
 import { FinanceiroFiltrosDto } from './dto/financeiro-filtros.dto';
 import { FinanceiroPdfService } from './financeiro-pdf.service';
 import { CreateFinanceiroDto } from './dto/create-financeiro.dto';
+import { Public } from 'src/auth/decorators/public.decorator';
 
 @ApiTags('Financeiro')
 @ApiBearerAuth('access-token')
-@UseGuards(AuthGuard('jwt'), RolesGuard) // Utilizando o padrão AuthGuard('jwt') do seu projeto
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('financeiro')
 export class FinanceiroController {
     constructor(
         private readonly financeiroService: FinanceiroService,
-        private readonly financeiroPdfService: FinanceiroPdfService, // ⭐️ INJEÇÃO ADICIONADA
+        private readonly financeiroPdfService: FinanceiroPdfService,
     ) { }
 
     @Post()
     @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE, PerfisEnum.CORRETOR)
     @ApiOperation({ summary: 'Cria um novo lançamento financeiro.' })
     async create(@Body() createDto: CreateFinanceiroDto, @Req() req) {
-        // Pegamos o empresaId do token (req.user) para garantir o Multitenancy
         const empresaId = req.user.empresa;
         return this.financeiroService.create(createDto, empresaId);
     }
@@ -32,7 +37,7 @@ export class FinanceiroController {
     @Get()
     @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE, PerfisEnum.CORRETOR)
     @ApiOperation({ summary: 'Lista todos os lançamentos financeiros da empresa.' })
-    async findAll(@Req() req, @Query() filtros: FinanceiroFiltrosDto) { // ⭐️ DTO aplicado aqui
+    async findAll(@Req() req, @Query() filtros: FinanceiroFiltrosDto) {
         const empresaId = req.user.empresa;
         return this.financeiroService.findAllByEmpresa(empresaId, filtros);
     }
@@ -43,6 +48,28 @@ export class FinanceiroController {
     async getResumo(@Req() req) {
         const empresaId = req.user.empresa;
         return this.financeiroService.getResumoMensal(empresaId);
+    }
+
+    @Get('validar/:id') // Use exatamente 'validar/:id'
+    @Public()
+    async validarRecibo(@Param('id') id: string) { // Volte para @Param
+        const dados = await this.financeiroService.buscarDadosParaReciboSimples(id);
+
+        if (!dados || !dados.lancamento || !dados.empresa) {
+            throw new NotFoundException('Recibo inválido ou não encontrado.');
+        }
+
+        const { lancamento, empresa } = dados;
+        const clientePopulado = lancamento.cliente as any;
+
+        return {
+            valido: true,
+            cliente: clientePopulado?.nome || 'Não identificado',
+            valor: lancamento.valor,
+            data: lancamento.dataPagamento || lancamento.dataVencimento,
+            emissor: empresa.nome,
+            descricao: lancamento.descricao
+        };
     }
 
     @Get(':id/recibo')
