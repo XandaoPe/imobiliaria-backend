@@ -12,22 +12,17 @@ export class ClienteService {
         @InjectModel(Cliente.name) private clienteModel: Model<ClienteDocument>,
     ) { }
 
-    // 1. CRIAÇÃO: Adiciona o empresaId do token
     async create(createClienteDto: CreateClienteDto, empresaId: string): Promise<Cliente> {
         const createdCliente = new this.clienteModel({
             ...createClienteDto,
-            // ⭐️ Multitenancy: Associa o Cliente ao ID da empresa do usuário logado
             empresa: new Types.ObjectId(empresaId),
         });
 
         try {
             return await createdCliente.save();
         } catch (error) {
-            // Tratamento de erro de duplicação para CPF/Email dentro da empresa
             if (error.code === 11000) {
-                const campo = error.keyPattern && error.keyPattern.cpf ? 'CPF' :
-                    error.keyPattern && error.keyPattern.email ? 'Email' :
-                        'campo único';
+                const campo = error.keyPattern?.cpf ? 'CPF' : error.keyPattern?.email ? 'Email' : 'campo único';
                 throw new BadRequestException(`Erro de Duplicação: O ${campo} informado já está cadastrado nesta empresa.`);
             }
             throw error;
@@ -35,87 +30,67 @@ export class ClienteService {
     }
 
     async findAll(empresaId: string, search?: string, status?: string): Promise<Cliente[]> {
-        // Filtro base: SEMPRE buscar apenas os clientes da empresa logada
         const filter: FilterQuery<ClienteDocument> = {
             empresa: new Types.ObjectId(empresaId)
         };
 
-        // ⭐️ NOVO: Lógica para filtrar por Status
         if (status && (status === 'ATIVO' || status === 'INATIVO')) {
             filter.status = status;
         }
 
-        // Se houver termo de busca, adiciona a lógica de busca full-text nos campos relevantes
         if (search) {
             const regex = new RegExp(search, 'i');
-
-            // Usa $or para procurar o termo de busca em qualquer um dos campos
-            // Este filtro será combinado com o filtro de empresa E o filtro de status (se existir)
             filter.$or = [
                 { nome: { $regex: regex } },
                 { cpf: { $regex: regex } },
                 { email: { $regex: regex } },
                 { telefone: { $regex: regex } },
-                // ⚠️ Se o status for 'ATIVO' ou 'INATIVO', evitamos buscar termos como 'ativo' no campo status aqui,
-                // já que o filtro de cima já cuidará disso de forma exata.
-                // Mas mantemos a busca por segurança.
                 { status: { $regex: regex } },
                 { perfil: { $regex: regex } },
                 { observacoes: { $regex: regex } },
+                // ⭐️ ADICIONADO: Permitir busca por endereço e cidade
+                { endereco: { $regex: regex } },
+                { cidade: { $regex: regex } },
             ];
         }
 
-        // Executa a busca com o filtro combinado (empresaId E (status Opcional) E (campos com search Opcional))
-        return this.clienteModel
-            .find(filter)
-            .exec();
+        return this.clienteModel.find(filter).sort({ nome: 1 }).exec();
     }
 
-    // 3. BUSCA ÚNICA: Filtra por ID do Cliente E ID da Empresa
     async findOne(clienteId: string, empresaId: string): Promise<Cliente> {
-        const cliente = await this.clienteModel
-            .findOne({
-                _id: clienteId,
-                // ⭐️ CORREÇÃO: Converte para ObjectId
-                empresa: new Types.ObjectId(empresaId),
-            })
-            .exec();
+        const cliente = await this.clienteModel.findOne({
+            _id: clienteId,
+            empresa: new Types.ObjectId(empresaId),
+        }).exec();
 
         if (!cliente) {
-            throw new NotFoundException(`Cliente com ID "${clienteId}" não encontrado ou não pertence a esta empresa.`);
+            throw new NotFoundException(`Cliente não encontrado ou não pertence a esta empresa.`);
         }
         return cliente;
     }
 
-    // 4. ATUALIZAÇÃO: Filtra por ID do Cliente E ID da Empresa
     async update(clienteId: string, updateClienteDto: UpdateClienteDto, empresaId: string): Promise<Cliente> {
-
-        const updatedCliente = await this.clienteModel
-            .findOneAndUpdate(
-                {
-                    _id: clienteId,
-                    empresa: new Types.ObjectId(empresaId)
-                },
-                updateClienteDto,
-                { new: true },
-            )
-            .exec();
+        const updatedCliente = await this.clienteModel.findOneAndUpdate(
+            { _id: clienteId, empresa: new Types.ObjectId(empresaId) },
+            updateClienteDto,
+            { new: true },
+        ).exec();
 
         if (!updatedCliente) {
-            throw new NotFoundException(`Cliente com ID "${clienteId}" não encontrado ou não pertence a esta empresa.`);
+            throw new NotFoundException(`Cliente não encontrado ou não pertence a esta empresa.`);
         }
         return updatedCliente;
     }
 
-    // 5. REMOÇÃO: Filtra por ID do Cliente E ID da Empresa
-    async remove(clienteId: string, empresaId: string): Promise<void> {
+    async remove(clienteId: string, empresaId: string): Promise<any> {
         const result = await this.clienteModel.deleteOne({
             _id: clienteId,
             empresa: new Types.ObjectId(empresaId)
         }).exec();
 
         if (result.deletedCount === 0) {
-            throw new NotFoundException(`Cliente com ID "${clienteId}" não encontrado ou não pertence a esta empresa.`);
+            throw new NotFoundException(`Cliente não encontrado.`);
         }
+        return { message: 'Cliente removido com sucesso' };
     }
 }

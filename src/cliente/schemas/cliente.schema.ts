@@ -9,7 +9,7 @@ export class Cliente {
     @Prop({ required: true })
     nome: string;
 
-    @Prop({ required: true, })
+    @Prop({ required: true })
     cpf: string;
 
     @Prop()
@@ -25,14 +25,18 @@ export class Cliente {
     perfil: string;
 
     @Prop()
-    observacoes: string; // Mongoose armazena null se o valor for nulo/omitido
+    observacoes: string;
+
+    // ⭐️ ADICIONADO: Registro no Schema do Banco
+    @Prop()
+    endereco: string;
+
+    @Prop()
+    cidade: string;
 
     @Prop({ type: Types.ObjectId, ref: 'Empresa', required: true })
     empresa: Types.ObjectId;
 }
 
-// ⚠️ Adicionar um índice composto para CPF/Email + Empresa é crucial para o Multitenancy
-// Você deve adicionar: ClienteSchema.index({ cpf: 1, empresa: 1 }, { unique: true });
-// E similar para email, se quiser garantir a unicidade de CPF e Email por Empresa.
-
 export const ClienteSchema = SchemaFactory.createForClass(Cliente);
+ClienteSchema.index({ cpf: 1, empresa: 1 }, { unique: true });

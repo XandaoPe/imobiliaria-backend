@@ -12,23 +12,65 @@ import { FinanceiroService } from 'src/financeiro/financeiro.service';
 export class NegociacaoService {
     constructor(
         @InjectModel(Negociacao.name) private negociacaoModel: Model<NegociacaoDocument>,
-        private imovelService: ImovelService, // Precisamos injetar para mudar o status do imóvel
+        private imovelService: ImovelService,
         private agendamentoService: AgendamentoService,
-        private financeiroService: FinanceiroService, // ⭐️ Injeção do novo serviço
+        private financeiroService: FinanceiroService,
     ) { }
 
-    async atualizarStatus(id: string, novoStatus: StatusNegociacao, empresaId: string) {
-        const negociacao = await this.negociacaoModel.findOne({ _id: id, empresa: new Types.ObjectId(empresaId) }).exec();
+    async findOne(id: string, empresaId: string): Promise<Negociacao> {
+        const negociacao = await this.negociacaoModel
+            .findOne({ _id: id, empresa: new Types.ObjectId(empresaId) })
+            // ⭐️ CORREÇÃO: Populate completo para o Modal de Detalhes
+            .populate('cliente', 'nome telefone email endereco cidade')
+            .populate('imovel', 'titulo endereco cidade proprietario')
+            .exec();
 
         if (!negociacao) {
             throw new NotFoundException('Negociação não encontrada.');
         }
+        return negociacao;
+    }
 
+    async findAll(empresaId: string) {
+        return this.negociacaoModel.find({ empresa: new Types.ObjectId(empresaId) })
+            .populate('imovel', 'titulo endereco cidade')
+            // ⭐️ CORREÇÃO: Adicionado endereco e cidade aqui também
+            .populate('cliente', 'nome email telefone endereco cidade')
+            .sort({ updatedAt: -1 })
+            .exec();
+    }
+
+    async updateStatus(
+        negociacaoId: string,
+        novoStatus: StatusNegociacao,
+        empresaId: string,
+        usuarioPayload: any,
+        dataAgendamento?: string
+    ) {
+        const negociacao = await this.negociacaoModel.findOne({
+            _id: negociacaoId,
+            empresa: new Types.ObjectId(empresaId)
+        });
+
+        if (!negociacao) throw new NotFoundException('Negociação não encontrada');
+
+        if (novoStatus === 'VISITA') {
+            if (!dataAgendamento) {
+                throw new BadRequestException('Para mudar para Visita Agendada, é necessário informar a data e hora.');
+            }
+
+            await this.agendamentoService.create({
+                imovelId: negociacao.imovel.toString(),
+                clienteId: negociacao.cliente.toString(),
+                dataHora: dataAgendamento,
+                status: StatusAgendamento.PENDENTE
+            }, usuarioPayload);
+        }
+
+        // ⭐️ Lógica do Financeiro ao fechar
         if (novoStatus === StatusNegociacao.FECHADO && negociacao.status !== StatusNegociacao.FECHADO) {
-            // BUSCA O IMÓVEL
             const imovel = await this.imovelService.findOne(negociacao.imovel.toString(), empresaId);
 
-            // VERIFICAÇÃO CRÍTICA: Se o imóvel não tem proprietário, o financeiro vai quebrar
             if (!imovel || !imovel.proprietario) {
                 throw new BadRequestException('Não é possível fechar a negociação: Imóvel sem proprietário vinculado.');
             }
@@ -37,7 +79,26 @@ export class NegociacaoService {
         }
 
         negociacao.status = novoStatus;
-        return negociacao.save();
+
+        negociacao.historico.push({
+            descricao: `Status alterado para: ${novoStatus}`,
+            usuario_nome: usuarioPayload.nome || 'Sistema',
+            data: new Date()
+        });
+
+        if (novoStatus === StatusNegociacao.ASSINADO || novoStatus === StatusNegociacao.FECHADO) {
+            await this.imovelService.update(
+                negociacao.imovel.toString(),
+                { disponivel: false },
+                empresaId
+            );
+            negociacao.data_fechamento = new Date();
+        }
+
+        const salvo = await negociacao.save();
+
+        // Retorna o objeto populado para o front não precisar recarregar
+        return this.findOne(salvo._id.toString(), empresaId);
     }
 
     async create(dto: CreateNegociacaoDto, empresaId: string, usuarioNome: string): Promise<Negociacao> {
@@ -45,9 +106,8 @@ export class NegociacaoService {
 
         const novaNegociacao = new this.negociacaoModel({
             ...dto,
-            valor_acordado: dto.valor_acordado || 0, // Garante um valor numérico
+            valor_acordado: dto.valor_acordado || 0,
             empresa: new Types.ObjectId(empresaId),
-            // Mescla o histórico que vem do front com a nota automática do sistema
             historico: [
                 ...(dto.historico || []),
                 {
@@ -58,7 +118,8 @@ export class NegociacaoService {
             ]
         });
 
-        return novaNegociacao.save();
+        const salva = await novaNegociacao.save();
+        return this.findOne(salva._id.toString(), empresaId);
     }
 
     async addHistorico(negociacaoId: string, empresaId: string, descricao: string, usuarioNome: string) {
@@ -70,63 +131,6 @@ export class NegociacaoService {
                 }
             },
             { new: true }
-        );
-    }
-
-    async updateStatus(
-        negociacaoId: string,
-        novoStatus: StatusNegociacao,
-        empresaId: string,
-        usuarioPayload: any, // 👈 Precisamos do payload do usuário (ID e Empresa)
-        dataAgendamento?: string // 👈 Opcional, vindo do front
-    ) {
-        const negociacao = await this.negociacaoModel.findOne({
-            _id: negociacaoId,
-            empresa: new Types.ObjectId(empresaId)
-        });
-
-        if (!negociacao) throw new NotFoundException('Negociação não encontrada');
-
-        // ⭐️ LÓGICA DE AGENDAMENTO AUTOMÁTICO
-        if (novoStatus === 'VISITA') {
-            if (!dataAgendamento) {
-                throw new BadRequestException('Para mudar para Visita Agendada, é necessário informar a data e hora.');
-            }
-
-            await this.agendamentoService.create({
-                imovelId: negociacao.imovel.toString(),
-                clienteId: negociacao.cliente.toString(),
-                dataHora: dataAgendamento,
-                status: StatusAgendamento.PENDENTE
-            }, usuarioPayload); // Passamos o payload para o multitenancy funcionar
-        }
-
-        negociacao.status = novoStatus;
-
-        negociacao.historico.push({
-            descricao: `Status alterado para: ${novoStatus}`,
-            usuario_nome: usuarioPayload.nome || 'Sistema',
-            data: new Date()
-        });
-
-        // Se a negociação for CONCLUÍDA, desativa o imóvel
-        if (novoStatus === StatusNegociacao.ASSINADO || novoStatus === StatusNegociacao.FECHADO) {
-            await this.imovelService.update(
-                negociacao.imovel.toString(),
-                { disponivel: false },
-                empresaId
-            );
-            negociacao.data_fechamento = new Date();
-        }
-
-        return negociacao.save();
-    }
-
-    async findAll(empresaId: string) {
-        return this.negociacaoModel.find({ empresa: new Types.ObjectId(empresaId) })
-            .populate('imovel', 'titulo endereco')
-            .populate('cliente', 'nome email')
-            .sort({ updatedAt: -1 })
-            .exec();
+        ).populate('cliente', 'nome telefone endereco cidade').populate('imovel');
     }
 }
