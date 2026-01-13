@@ -17,7 +17,7 @@ export class NotificacaoService implements OnModuleInit {
             const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
             if (projectId && clientEmail && privateKey) {
-                console.log('✅ Inicializando Firebase via Variáveis de Ambiente');
+
                 admin.initializeApp({
                     credential: admin.credential.cert({
                         projectId,
@@ -28,7 +28,7 @@ export class NotificacaoService implements OnModuleInit {
                 });
             } else {
                 // 2. Fallback para arquivo local (Cenário Desenvolvimento Local)
-                console.log('ℹ️ Inicializando Firebase via arquivo JSON local');
+
                 const serviceAccountPath = path.resolve(process.cwd(), 'config', 'firebase-service-account.json');
 
                 admin.initializeApp({
@@ -77,7 +77,6 @@ export class NotificacaoService implements OnModuleInit {
                 },
             });
 
-            console.log(`🚀 Push processado: ${response.successCount} sucessos, ${response.failureCount} falhas.`);
 
             if (response.failureCount > 0) {
                 response.responses.forEach((resp, idx) => {
@@ -108,7 +107,7 @@ export class NotificacaoService implements OnModuleInit {
                 template,
                 context,
             });
-            console.log(`Email enviado para: ${to}`);
+
         } catch (error) {
             console.error('Erro ao enviar email:', error);
             throw new InternalServerErrorException('Falha no serviço de e-mail.');

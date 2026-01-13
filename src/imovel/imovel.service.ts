@@ -41,7 +41,7 @@ export class ImovelService {
             empresa: empresaObjectId,
         });
         
-        console.log('createImovelDto:', createImovelDto);
+
         return createdImovel.save();
     }
 
@@ -142,7 +142,7 @@ export class ImovelService {
         });
 
         const result = await this.imovelModel.aggregate(pipeline).exec();
-        console.log('findAll - Resultado:', JSON.stringify(result[0]?.proprietario, null, 2));
+
         return result;
     }
 

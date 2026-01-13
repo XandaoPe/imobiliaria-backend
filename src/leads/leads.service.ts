@@ -28,9 +28,6 @@ export class LeadsService {
     }
 
     async create(createLeadDto: CreateLeadDto): Promise<Lead> {
-        console.log('📝 Criando lead com dados:', createLeadDto);
-        console.log('🔍 Tipo de empresaId:', typeof createLeadDto.empresa);
-        console.log('🔍 Valor de empresaId:', createLeadDto.empresa);
         // 1. Preparação dos dados com conversão de IDs
         const leadData = {
             ...createLeadDto,
@@ -54,11 +51,6 @@ export class LeadsService {
      */
     private async notificarCorretores(lead: Lead): Promise<void> {
         try {
-            console.log('🔔 Disparando notificação para novo lead:', {
-                leadId: lead._id,
-                nome: lead.nome,
-                empresaId: lead.empresa
-            });
 
             // 1. Busca usuários da EMPRESA DO LEAD
             const destinatarios = await this.usuarioModel.find({
@@ -66,8 +58,6 @@ export class LeadsService {
                 pushToken: { $exists: true, $not: { $size: 0 } },
                 perfil: { $in: [PerfisEnum.CORRETOR, PerfisEnum.GERENTE, PerfisEnum.ADM_GERAL] } // Inclui ADMs
             });
-
-            console.log(`📱 ${destinatarios.length} corretores encontrados para notificar`);
 
             // 2. Coleta todos os tokens únicos
             const todosTokens: string[] = [];
@@ -84,11 +74,8 @@ export class LeadsService {
             const tokensUnicos = [...new Set(todosTokens)];
 
             if (tokensUnicos.length === 0) {
-                console.log('⚠️ Nenhum token push encontrado para notificar');
                 return;
             }
-
-            console.log(`📤 Enviando para ${tokensUnicos.length} token(s) únicos`);
 
             // 3. Envia notificação para TODOS os tokens
             await this.notificacaoService.sendPush(
@@ -103,7 +90,6 @@ export class LeadsService {
                 }
             );
 
-            console.log('✅ Notificação enviada com sucesso');
 
         } catch (error) {
             console.error('❌ Erro ao notificar corretores:', error);

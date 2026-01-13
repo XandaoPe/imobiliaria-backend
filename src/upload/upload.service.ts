@@ -14,10 +14,6 @@ export class UploadService {
     }
 
     async uploadImage(file: Express.Multer.File): Promise<string> {
-        console.log('--- INICIANDO UPLOAD PARA CLOUDINARY ---');
-        console.log('Arquivo recebido:', file?.originalname);
-        console.log('Tamanho do buffer:', file?.buffer?.length, 'bytes');
-        console.log('Cloud Name:', process.env.CLOUDINARY_NAME);
 
         if (!process.env.CLOUDINARY_NAME) {
             throw new Error("Erro Crítico: Variáveis do Cloudinary não carregadas no .env");
@@ -45,7 +41,7 @@ export class UploadService {
                         return reject(new Error('Falha ao obter resposta do Cloudinary.'));
                     }
 
-                    console.log('SUCESSO NO CLOUDINARY! URL:', result.secure_url);
+
                     resolve(result.secure_url);
                 },
             );

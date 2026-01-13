@@ -19,7 +19,6 @@ export class NotificacaoController {
         body: string;
         data?: any;
     }) {
-        console.log('🔔 Recebendo teste de notificação:', body);
 
         // O sendPush retorna void, então precisamos envolver em try/catch
         try {

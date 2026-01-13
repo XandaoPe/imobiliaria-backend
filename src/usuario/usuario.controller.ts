@@ -72,7 +72,7 @@ export class UsuarioController {
     @Req() req: RequestWithUser,
   ): Promise<Usuario> {
     // LOG PARA DEBUG: Se isso não aparecer no terminal do VSCode, o Front não chamou a API
-    console.log(`Recebendo atualização para o usuário ${id}. Dados:`, updateUsuarioDto);
+
 
     return this.usuarioService.update(id, updateUsuarioDto, req.user.empresa);
   }
