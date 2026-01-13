@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Body, Patch, Param, UseGuards, Req, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { NegociacaoService } from './negociacao.service';
 import { CreateNegociacaoDto } from './dto/create-negociacao.dto';
 import { StatusNegociacao } from './schemas/negociacao.schema';
-import type { RequestWithUser } from '../cliente/cliente.controller'; // Reaproveitando sua interface
+import type { RequestWithUser } from '../cliente/cliente.controller';
 
 @ApiTags('Negociações (CRM)')
 @ApiBearerAuth('access-token')
@@ -16,28 +16,33 @@ export class NegociacaoController {
     @Post()
     @ApiOperation({ summary: 'Inicia uma nova negociação de venda ou aluguel' })
     create(@Body() createDto: CreateNegociacaoDto, @Req() req: RequestWithUser) {
-        // Usamos o nome do usuário vindo do payload do token para o histórico inicial
         const usuarioNome = req.user.nome || 'Sistema';
         return this.negociacaoService.create(createDto, req.user.empresa, usuarioNome);
     }
 
     @Get()
-    @ApiOperation({ summary: 'Lista todas as negociações da empresa' })
-    findAll(@Req() req: RequestWithUser) {
-        return this.negociacaoService.findAll(req.user.empresa);
+    @ApiOperation({ summary: 'Lista todas as negociações da empresa com filtros' })
+    @ApiQuery({ name: 'search', required: false, type: String })
+    @ApiQuery({ name: 'status', required: false, enum: ['PROSPECCAO', 'VISITA', 'PROPOSTA', 'FECHADO', 'PERDIDO'] })
+    findAll(
+        @Req() req: RequestWithUser,
+        @Query('search') search?: string,
+        @Query('status') status?: string
+    ) {
+        // Agora passamos os filtros de busca para o Service
+        return this.negociacaoService.findAll(req.user.empresa, search, status);
     }
 
     @Patch(':id')
     async update(
         @Param('id') id: string,
         @Body() body: { status?: StatusNegociacao; descricao?: string; dataAgendamento?: string },
-        @Req() req: RequestWithUser // 👈 Use a interface tipada aqui
+        @Req() req: RequestWithUser
     ) {
         const empresaId = req.user.empresa;
         const usuarioPayload = req.user;
-        const usuarioNome = req.user.nome || 'Sistema'; // 👈 DECLARAÇÃO DA VARIÁVEL
+        const usuarioNome = req.user.nome || 'Sistema';
 
-        // 1. Se houver mudança de status
         if (body.status) {
             await this.negociacaoService.updateStatus(
                 id,
@@ -48,7 +53,6 @@ export class NegociacaoController {
             );
         }
 
-        // 2. Se houver uma descrição (anotação), adicionamos ao histórico
         if (body.descricao) {
             return await this.negociacaoService.addHistorico(
                 id,
@@ -58,7 +62,7 @@ export class NegociacaoController {
             );
         }
 
-        // 3. Caso mude apenas o status, retornamos a lista ou a negociação atualizada
+        // Importante: atualizar o findAll aqui também se quiser manter o retorno filtrado após o patch
         return this.negociacaoService.findAll(empresaId);
     }
 

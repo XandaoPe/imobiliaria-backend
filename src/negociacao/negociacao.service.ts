@@ -20,7 +20,6 @@ export class NegociacaoService {
     async findOne(id: string, empresaId: string): Promise<Negociacao> {
         const negociacao = await this.negociacaoModel
             .findOne({ _id: id, empresa: new Types.ObjectId(empresaId) })
-            // ⭐️ CORREÇÃO: Populate completo para o Modal de Detalhes
             .populate('cliente', 'nome telefone email endereco cidade')
             .populate('imovel', 'titulo endereco cidade proprietario')
             .exec();
@@ -31,13 +30,41 @@ export class NegociacaoService {
         return negociacao;
     }
 
-    async findAll(empresaId: string) {
-        return this.negociacaoModel.find({ empresa: new Types.ObjectId(empresaId) })
+    /**
+     * Listagem com busca textual em campos populados e filtro por status
+     */
+    async findAll(empresaId: string, search?: string, status?: string) {
+        // 1. Criamos o filtro básico por empresa
+        const query: any = { empresa: new Types.ObjectId(empresaId) };
+
+        // 2. Filtro por Status
+        if (status && status !== 'TODOS') {
+            query.status = status;
+        }
+
+        // 3. Executamos o find com populate
+        let negociacoes = await this.negociacaoModel
+            .find(query)
             .populate('imovel', 'titulo endereco cidade')
-            // ⭐️ CORREÇÃO: Adicionado endereco e cidade aqui também
             .populate('cliente', 'nome email telefone endereco cidade')
             .sort({ updatedAt: -1 })
             .exec();
+
+        // 4. Filtro de busca textual via código (mais seguro que Aggregate para relacionamentos)
+        if (search) {
+            const searchLower = search.toLowerCase();
+            negociacoes = negociacoes.filter(item => {
+                const clienteNome = (item.cliente as any)?.nome?.toLowerCase() || '';
+                const imovelTitulo = (item.imovel as any)?.titulo?.toLowerCase() || '';
+                const imovelEndereco = (item.imovel as any)?.endereco?.toLowerCase() || '';
+
+                return clienteNome.includes(searchLower) ||
+                    imovelTitulo.includes(searchLower) ||
+                    imovelEndereco.includes(searchLower);
+            });
+        }
+
+        return negociacoes;
     }
 
     async updateStatus(
@@ -67,7 +94,6 @@ export class NegociacaoService {
             }, usuarioPayload);
         }
 
-        // ⭐️ Lógica do Financeiro ao fechar
         if (novoStatus === StatusNegociacao.FECHADO && negociacao.status !== StatusNegociacao.FECHADO) {
             const imovel = await this.imovelService.findOne(negociacao.imovel.toString(), empresaId);
 
@@ -96,8 +122,6 @@ export class NegociacaoService {
         }
 
         const salvo = await negociacao.save();
-
-        // Retorna o objeto populado para o front não precisar recarregar
         return this.findOne(salvo._id.toString(), empresaId);
     }
 
