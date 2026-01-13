@@ -50,18 +50,38 @@ export class ImovelService {
 
         const pipeline: any[] = [
             {
-                // Filtra primeiro pela empresa do usuário logado (Multitenancy)
                 $match: { empresa: empresaObjectId }
+            },
+            // ⭐️ CORREÇÃO: Converte proprietario string para ObjectId antes do lookup
+            {
+                $addFields: {
+                    proprietarioObjectId: {
+                        $cond: {
+                            if: { $eq: [{ $type: "$proprietario" }, "string"] },
+                            then: { $toObjectId: "$proprietario" },
+                            else: "$proprietario"
+                        }
+                    }
+                }
             },
             {
                 $lookup: {
-                    from: 'empresas', // Nome da sua coleção de empresas
+                    from: 'clientes',
+                    localField: 'proprietarioObjectId', // ⭐️ Usa o campo convertido
+                    foreignField: '_id',
+                    as: 'proprietario_info',
+                },
+            },
+            {
+                $lookup: {
+                    from: 'empresas',
                     localField: 'empresa',
                     foreignField: '_id',
                     as: 'empresa_info',
                 },
             },
             { $unwind: '$empresa_info' },
+            { $unwind: { path: '$proprietario_info', preserveNullAndEmptyArrays: true } },
         ];
 
         // Filtro de Status (Disponível/Indisponível)
@@ -92,7 +112,6 @@ export class ImovelService {
                 titulo: 1,
                 tipo: 1,
                 endereco: 1,
-                // ⭐️ REMOVA OS CAMPOS ANTIGOS E ADICIONE OS NOVOS
                 para_venda: 1,
                 para_aluguel: 1,
                 valor_venda: 1,
@@ -108,27 +127,49 @@ export class ImovelService {
                 area_construida: 1,
                 garagem: 1,
                 empresa: '$empresa_info',
+                // ⭐️ Retorna o proprietário populado ou o ID original
+                proprietario: {
+                    $cond: {
+                        if: { $ifNull: ["$proprietario_info", false] },
+                        then: {
+                            _id: { $toString: "$proprietario_info._id" },
+                            nome: "$proprietario_info.nome"
+                        },
+                        else: "$proprietario" // Fallback para ID string
+                    }
+                }
             }
         });
 
-        return this.imovelModel.aggregate(pipeline).exec();
+        const result = await this.imovelModel.aggregate(pipeline).exec();
+        console.log('findAll - Resultado:', JSON.stringify(result[0]?.proprietario, null, 2));
+        return result;
     }
 
     async findAllPublico(search?: string) {
-        // 1. Criamos o estágio de Lookup para trazer os dados da empresa ANTES do filtro
         const pipeline: any[] = [
             {
                 $lookup: {
-                    from: 'empresas', // Nome da coleção de empresas no MongoDB (geralmente plural)
+                    from: 'empresas',
                     localField: 'empresa',
                     foreignField: '_id',
                     as: 'empresa_info',
                 },
             },
-            { $unwind: '$empresa_info' }, // Transforma o array em objeto
+            // ⭐️ ADICIONADO: Populate do proprietário
+            {
+                $lookup: {
+                    from: 'clientes',
+                    localField: 'proprietario',
+                    foreignField: '_id',
+                    as: 'proprietario_info',
+                },
+            },
+            { $unwind: '$empresa_info' },
+            { $unwind: { path: '$proprietario_info', preserveNullAndEmptyArrays: true } },
             {
                 $match: {
-                    disponivel: true, // Apenas imóveis disponíveis
+                    disponivel: true,
                 },
             },
         ];
@@ -155,7 +196,6 @@ export class ImovelService {
                 titulo: 1,
                 tipo: 1,
                 endereco: 1,
-                // ⭐️ REMOVA OS CAMPOS ANTIGOS E ADICIONE OS NOVOS
                 para_venda: 1,
                 para_aluguel: 1,
                 valor_venda: 1,
@@ -164,12 +204,24 @@ export class ImovelService {
                 cidade: 1,
                 descricao: 1,
                 fotos: 1,
-                area_construida: 1,
-                area_terreno: 1,
+                detalhes: 1,
                 quartos: 1,
                 banheiros: 1,
+                area_terreno: 1,
+                area_construida: 1,
                 garagem: 1,
-                empresa: '$empresa_info', // Mapeia de volta para o campo 'empresa'
+                empresa: '$empresa_info',
+                // ⭐️ GARANTIR que está incluindo o proprietario:
+                proprietario: {
+                    $cond: {
+                        if: { $eq: [{ $type: "$proprietario_info" }, "object"] },
+                        then: {
+                            _id: "$proprietario_info._id",
+                            nome: "$proprietario_info.nome"
+                        },
+                        else: "$proprietario" // Mantém o ID se não populou
+                    }
+                }
             }
         });
 
@@ -177,23 +229,85 @@ export class ImovelService {
     }
 
     // 3. BUSCA ÚNICA: Filtra por ID do Imóvel E ID da Empresa
-    // No src/imovel/imovel.service.ts
-
-    async findOne(imovelId: string, empresaId: string): Promise<ImovelDocument> { // Mudado para Promise<ImovelDocument>
+    async findOne(imovelId: string, empresaId: string): Promise<any> {
         const empresaObjectId = this.validateAndConvertId(empresaId, 'ID da Empresa');
         const imovelObjectId = this.validateAndConvertId(imovelId, 'ID do Imóvel');
 
-        const imovel = await this.imovelModel
-            .findOne({
-                _id: imovelObjectId,
-                empresa: empresaObjectId,
-            })
-            .exec();
+        const result = await this.imovelModel.aggregate([
+            {
+                $match: {
+                    _id: imovelObjectId,
+                    empresa: empresaObjectId,
+                }
+            },
+            {
+                $addFields: {
+                    proprietarioObjectId: {
+                        $cond: {
+                            if: { $eq: [{ $type: "$proprietario" }, "string"] },
+                            then: { $toObjectId: "$proprietario" },
+                            else: "$proprietario"
+                        }
+                    }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'clientes',
+                    localField: 'proprietarioObjectId',
+                    foreignField: '_id',
+                    as: 'proprietario_info',
+                },
+            },
+            {
+                $lookup: {
+                    from: 'empresas',
+                    localField: 'empresa',
+                    foreignField: '_id',
+                    as: 'empresa_info',
+                },
+            },
+            { $unwind: '$empresa_info' },
+            { $unwind: { path: '$proprietario_info', preserveNullAndEmptyArrays: true } },
+            {
+                $project: {
+                    titulo: 1,
+                    tipo: 1,
+                    endereco: 1,
+                    para_venda: 1,
+                    para_aluguel: 1,
+                    valor_venda: 1,
+                    valor_aluguel: 1,
+                    disponivel: 1,
+                    cidade: 1,
+                    descricao: 1,
+                    fotos: 1,
+                    detalhes: 1,
+                    quartos: 1,
+                    banheiros: 1,
+                    area_terreno: 1,
+                    area_construida: 1,
+                    garagem: 1,
+                    empresa: '$empresa_info',
+                    proprietario: {
+                        $cond: {
+                            if: { $ifNull: ["$proprietario_info", false] },
+                            then: {
+                                _id: { $toString: "$proprietario_info._id" },
+                                nome: "$proprietario_info.nome"
+                            },
+                            else: "$proprietario"
+                        }
+                    }
+                }
+            }
+        ]).exec();
 
-        if (!imovel) {
+        if (!result || result.length === 0) {
             throw new NotFoundException(`Imóvel não encontrado.`);
         }
-        return imovel; // Retorna o Documento do Mongoose com todas as propriedades
+
+        return result[0];
     }
 
     async update(imovelId: string, updateImovelDto: UpdateImovelDto, empresaId: string): Promise<Imovel> {
