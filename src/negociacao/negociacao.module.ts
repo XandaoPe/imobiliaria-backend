@@ -6,10 +6,14 @@ import { ImovelModule } from '../imovel/imovel.module'; // Importante para o cro
 import { NegociacaoController } from './negociacao.controller';
 import { AgendamentoModule } from 'src/agendamento/agendamento.module';
 import { FinanceiroModule } from 'src/financeiro/financeiro.module';
+import { Counter, CounterSchema } from 'src/common/schemas/counter.schema';
 
 @Module({
     imports: [
-        MongooseModule.forFeature([{ name: Negociacao.name, schema: NegociacaoSchema }]),
+        MongooseModule.forFeature([
+            { name: Negociacao.name, schema: NegociacaoSchema },
+            { name: Counter.name, schema: CounterSchema },
+        ]),
         ImovelModule, // Permite usar o ImovelService aqui
         AgendamentoModule,
         FinanceiroModule,

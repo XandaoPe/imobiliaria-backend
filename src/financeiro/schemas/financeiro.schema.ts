@@ -31,6 +31,9 @@ export class Financeiro {
     @Prop({ type: Types.ObjectId, ref: 'Negociacao', required: false })
     negociacao: Types.ObjectId;
 
+    @Prop({ required: false })
+    negociacaoCodigo: string;
+
     @Prop({ required: true, enum: TipoLancamento })
     tipo: TipoLancamento;
 

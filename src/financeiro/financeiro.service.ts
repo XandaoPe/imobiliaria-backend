@@ -1,4 +1,3 @@
-// src/financeiro/financeiro.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -21,6 +20,7 @@ export class FinanceiroService {
         });
         return await novoLancamento.save();
     }
+
     async gerarFluxoFinanceiroFechamento(
         negociacao: any,
         imovel: any,
@@ -28,7 +28,7 @@ export class FinanceiroService {
             valorTotal: number;
             valorEntrada: number;
             qtdParcelas: number;
-            valorParcela: number; // Este valor já vem calculado/editado do modal
+            valorParcela: number;
             diaVencimento?: number;
         }
     ) {
@@ -36,14 +36,18 @@ export class FinanceiroService {
         const { valorEntrada, qtdParcelas, valorParcela, diaVencimento } = financeiroData;
 
         const clienteId = negociacao.cliente._id || negociacao.cliente;
-        const proprietarioId = imovel.proprietario._id || imovel.proprietario;
-        const diaPadrao = diaVencimento || negociacao.dia_vencimento_aluguel || 10;
+        const proprietarioId = imovel.proprietario?._id || imovel.proprietario;
+        const diaPadrao = diaVencimento || 10;
+
+        // Pegamos o código da negociação (que agora existe no schema de negociação)
+        const codNeg = negociacao.codigo || 'S/COD';
 
         // 1. Lançamento da Entrada
         if (valorEntrada > 0) {
             lancamentos.push({
                 empresa: negociacao.empresa,
                 negociacao: negociacao._id,
+                negociacaoCodigo: codNeg, // Vínculo direto com o código sequencial
                 imovel: imovel._id,
                 cliente: clienteId,
                 tipo: TipoLancamento.RECEITA,
@@ -53,7 +57,7 @@ export class FinanceiroService {
                 dataVencimento: new Date(),
                 dataPagamento: new Date(),
                 status: 'PAGO',
-                descricao: `Entrada - ${negociacao.tipo} - Imóvel ${imovel.codigo || imovel._id}`,
+                descricao: `[${codNeg}] Entrada - ${negociacao.tipo} - Imóvel ${imovel.codigo || 'S/R'}`,
                 observacoes: 'Gerado automaticamente no fechamento.'
             });
         }
@@ -68,6 +72,7 @@ export class FinanceiroService {
             lancamentos.push({
                 empresa: negociacao.empresa,
                 negociacao: negociacao._id,
+                negociacaoCodigo: codNeg, // Vínculo aqui também
                 imovel: imovel._id,
                 cliente: clienteId,
                 tipo: TipoLancamento.RECEITA,
@@ -76,17 +81,18 @@ export class FinanceiroService {
                 dataVencimento: new Date(vencimento),
                 status: 'PENDENTE',
                 parcelaNumero: i,
-                descricao: `Parcela ${i}/${qtdParcelas} - ${negociacao.tipo}`,
+                descricao: `[${codNeg}] Parcela ${i}/${qtdParcelas} - ${negociacao.tipo}`,
             });
 
             // Repasse ao Proprietário
             if (proprietarioId) {
-                const taxaAdm = 0.10; // 10% - Idealmente viria de imovel.taxa_adm ou empresa.taxa_padrao
+                const taxaAdm = 0.10; // 10%
                 const valorRepasse = valorParcela * (1 - taxaAdm);
 
                 lancamentos.push({
                     empresa: negociacao.empresa,
                     negociacao: negociacao._id,
+                    negociacaoCodigo: codNeg, // Vínculo aqui também
                     imovel: imovel._id,
                     cliente: proprietarioId,
                     tipo: TipoLancamento.DESPESA,
@@ -95,7 +101,7 @@ export class FinanceiroService {
                     dataVencimento: new Date(vencimento),
                     status: 'PENDENTE',
                     parcelaNumero: i,
-                    descricao: `Repasse Parcela ${i}/${qtdParcelas} - Ref: ${negociacao.cliente.nome || 'Negociação'}`,
+                    descricao: `[${codNeg}] Repasse Parcela ${i}/${qtdParcelas}`,
                 });
             }
         }
@@ -176,7 +182,6 @@ export class FinanceiroService {
     }
 
     async cancelarParcelasPendentes(negociacaoId: string, empresaId: string) {
-        // Cancela apenas o que não foi pago. O que já foi pago fica no histórico financeiro.
         return await this.financeiroModel.updateMany(
             {
                 negociacao: new Types.ObjectId(negociacaoId),

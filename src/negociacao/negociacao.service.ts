@@ -13,10 +13,24 @@ import { FinanceiroService } from 'src/financeiro/financeiro.service';
 export class NegociacaoService {
     constructor(
         @InjectModel(Negociacao.name) private negociacaoModel: Model<NegociacaoDocument>,
+        @InjectModel('Counter') private counterModel: Model<any>,
         private imovelService: ImovelService,
         private agendamentoService: AgendamentoService,
         private financeiroService: FinanceiroService,
     ) { }
+
+    private async generateNextCodigo(): Promise<string> {
+        const counter = await this.counterModel.findOneAndUpdate(
+            { nome: 'negociacao_seq' }, // Alterado de 'id' para 'nome'
+            { $inc: { seq: 1 } },
+            { new: true, upsert: true }
+        );
+
+        const ano = new Date().getFullYear();
+        // Formata o número com 4 dígitos (ex: 0001, 0002...)
+        const sequencial = counter.seq.toString().padStart(4, '0');
+        return `NEG-${ano}-${sequencial}`;
+    }
 
     async findOne(id: string, empresaId: string): Promise<NegociacaoDocument> {
         const negociacao = await this.negociacaoModel
@@ -144,20 +158,19 @@ export class NegociacaoService {
     }
 
     async create(dto: CreateNegociacaoDto, empresaId: string, usuarioNome: string): Promise<NegociacaoDocument> {
-        // Valida se o imóvel existe
         await this.imovelService.findOne(dto.imovel, empresaId);
+
+        const codigo = await this.generateNextCodigo(); // GERA O CÓDIGO AQUI
 
         const novaNegociacao = new this.negociacaoModel({
             ...dto,
-            valor_acordado: dto.valor_acordado || 0,
+            codigo, // SALVA O CÓDIGO
             empresa: new Types.ObjectId(empresaId),
-            historico: [
-                {
-                    descricao: `Negociação iniciada por ${usuarioNome}`,
-                    usuario_nome: usuarioNome,
-                    data: new Date()
-                }
-            ]
+            historico: [{
+                descricao: `Negociação ${codigo} iniciada por ${usuarioNome}`,
+                usuario_nome: usuarioNome,
+                data: new Date()
+            }]
         });
 
         const salva = await novaNegociacao.save();

@@ -90,6 +90,9 @@ export class Negociacao {
 
     @Prop({ type: DadosFinanceiros })
     dadosFinanceiros?: DadosFinanceiros;
+
+    @Prop({ unique: true })
+    codigo: string;
 }
 
 export const NegociacaoSchema = SchemaFactory.createForClass(Negociacao);
