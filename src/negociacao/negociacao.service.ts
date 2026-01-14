@@ -74,7 +74,7 @@ export class NegociacaoService {
         if (negociacao.status === StatusNegociacao.FECHADO && novoStatus === StatusNegociacao.FECHADO) {
             throw new BadRequestException('Esta negociação já foi finalizada. Para alterar valores, utilize a opção "Refazer Negociação".');
         }
-        
+
         // Lógica para Agendamento de Visita
         if (novoStatus === StatusNegociacao.VISITA) {
             if (!dataAgendamento) {
@@ -200,7 +200,12 @@ export class NegociacaoService {
         return await negociacao.save();
     }
 
-    async refazerNegociacao(negociacaoId: string, empresaId: string, usuarioPayload: any) {
+    async refazerNegociacao(
+        negociacaoId: string,
+        empresaId: string,
+        usuarioPayload: any,
+        gerarNovaProspeccao: boolean = true // Default como true para manter compatibilidade
+    ) {
         // 1. Busca a negociação original
         const antiga = await this.findOne(negociacaoId, empresaId);
 
@@ -208,41 +213,45 @@ export class NegociacaoService {
             throw new BadRequestException('Apenas negociações fechadas ou canceladas podem ser refeitas.');
         }
 
-        // 2. Se ela ainda estiver como FECHADO, precisamos cancelar o financeiro dela primeiro
+        // 2. Se ela ainda estiver como FECHADO, cancelamos o financeiro e liberamos o imóvel
         if (antiga.status === StatusNegociacao.FECHADO) {
             await this.financeiroService.cancelarParcelasPendentes(negociacaoId, empresaId);
             await this.imovelService.update(antiga.imovel._id.toString(), { disponivel: true }, empresaId);
 
             antiga.status = StatusNegociacao.CANCELADO;
             antiga.historico.push({
-                descricao: `Negociação cancelada para ser refeita por ${usuarioPayload.nome}.`,
+                descricao: `Negociação estornada por ${usuarioPayload.nome}.${gerarNovaProspeccao ? ' Iniciando nova prospecção.' : ' Imóvel liberado.'}`,
                 usuario_nome: usuarioPayload.nome,
                 data: new Date()
             });
             await antiga.save();
         }
 
-        // 3. Cria a NOVA negociação baseada nos dados da antiga
-        const novaNegociacao = new this.negociacaoModel({
-            imovel: antiga.imovel._id,
-            cliente: antiga.cliente._id,
-            empresa: antiga.empresa,
-            tipo: antiga.tipo,
-            status: StatusNegociacao.PROSPECCAO, // Começa do zero
-            valor_acordado: 0,
-            observacoes_gerais: `Refilmagem da negociação anterior (ID: ${antiga._id})`,
-            historico: [
-                {
-                    descricao: `Negociação iniciada a partir do estorno da negociação ${antiga._id}`,
-                    usuario_nome: usuarioPayload.nome,
-                    data: new Date()
-                }
-            ]
-        });
+        // 3. Condicional para criar a NOVA negociação
+        if (gerarNovaProspeccao) {
+            const novaNegociacao = new this.negociacaoModel({
+                imovel: antiga.imovel._id,
+                cliente: antiga.cliente._id,
+                empresa: antiga.empresa,
+                tipo: antiga.tipo,
+                status: StatusNegociacao.PROSPECCAO,
+                valor_acordado: 0,
+                observacoes_gerais: `Refilmagem da negociação anterior (ID: ${antiga._id})`,
+                historico: [
+                    {
+                        descricao: `Negociação iniciada a partir do estorno da negociação ${antiga._id}`,
+                        usuario_nome: usuarioPayload.nome,
+                        data: new Date()
+                    }
+                ]
+            });
 
-        const salva = await novaNegociacao.save();
+            const salva = await novaNegociacao.save();
+            // Retorna a nova para o frontend redirecionar
+            return this.findOne(salva._id.toString(), empresaId);
+        }
 
-        // Retorna a nova negociação para o frontend redirecionar o usuário
-        return this.findOne(salva._id.toString(), empresaId);
+        // Se NÃO for para gerar nova, retorna a antiga já cancelada e atualizada
+        return antiga;
     }
 }

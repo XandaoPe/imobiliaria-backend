@@ -83,11 +83,17 @@ export class NegociacaoController {
     }
 
     @Post(':id/refazer')
-    @ApiOperation({ summary: 'Cancela a negociação atual e cria uma nova cópia para correção' })
+    @ApiOperation({ summary: 'Cancela a negociação atual e opcionalmente cria uma nova cópia' })
     async refazer(
         @Param('id') id: string,
+        @Body('gerarNovaProspeccao') gerarNovaProspeccao: boolean, // Captura o booleano do Body
         @Req() req: RequestWithUser
     ) {
-        return await this.negociacaoService.refazerNegociacao(id, req.user.empresa, req.user);
+        return await this.negociacaoService.refazerNegociacao(
+            id,
+            req.user.empresa,
+            req.user,
+            gerarNovaProspeccao // Passa para o service
+        );
     }
 }
