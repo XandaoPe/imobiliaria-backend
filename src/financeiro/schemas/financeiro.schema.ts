@@ -16,7 +16,17 @@ export enum CategoriaLancamento {
     MANUTENCAO = 'MANUTENCAO',
 }
 
-@Schema({ timestamps: true })
+export enum StatusFinanceiro {
+    PENDENTE = 'PENDENTE',
+    PAGO = 'PAGO',
+    CANCELADO = 'CANCELADO',
+    ATRASADO = 'ATRASADO',
+}
+
+@Schema({
+    timestamps: true,
+    collection: 'financeiros'
+})
 export class Financeiro {
     @Prop({ type: Types.ObjectId, ref: 'Empresa', required: true })
     empresa: Types.ObjectId;
@@ -24,10 +34,13 @@ export class Financeiro {
     @Prop({ type: Types.ObjectId, ref: 'Imovel', required: true })
     imovel: Types.ObjectId;
 
+    /**
+     * No caso de RECEITA: É o locatário/comprador
+     * No caso de DESPESA/REPASSE: É o proprietário do imóvel
+     */
     @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true })
     cliente: Types.ObjectId;
 
-    // ADICIONADO: Referência para a Negociação que originou este lançamento
     @Prop({ type: Types.ObjectId, ref: 'Negociacao', required: false })
     negociacao: Types.ObjectId;
 
@@ -52,13 +65,17 @@ export class Financeiro {
     @Prop()
     dataPagamento?: Date;
 
-    @Prop({ default: 'PENDENTE', enum: ['PENDENTE', 'PAGO', 'CANCELADO', 'ATRASADO'] })
+    @Prop({
+        required: true,
+        enum: StatusFinanceiro,
+        default: StatusFinanceiro.PENDENTE
+    })
     status: string;
 
     @Prop()
     parcelaNumero?: number;
 
-    @Prop()
+    @Prop({ required: true })
     descricao: string;
 
     @Prop()
@@ -66,3 +83,8 @@ export class Financeiro {
 }
 
 export const FinanceiroSchema = SchemaFactory.createForClass(Financeiro);
+
+// Adicionando índices para otimizar as buscas do findAllByEmpresa
+FinanceiroSchema.index({ empresa: 1, status: 1 });
+FinanceiroSchema.index({ negociacao: 1 });
+FinanceiroSchema.index({ dataVencimento: 1 });

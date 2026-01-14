@@ -1,35 +1,46 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsEnum, IsString } from 'class-validator';
+import { IsOptional, IsEnum, IsString, IsNumber, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { TipoLancamento } from '../schemas/financeiro.schema';
 
 export class FinanceiroFiltrosDto {
-    @ApiPropertyOptional({
-        description: 'Termo de busca para filtrar por descrição ou código da negociação'
-    })
+    @ApiPropertyOptional({ description: 'Termo de busca' })
     @IsOptional()
     @IsString()
-    search?: string; // Adicionado este campo para habilitar a busca global
+    search?: string;
 
     @ApiPropertyOptional({ enum: TipoLancamento })
     @IsOptional()
     @IsEnum(TipoLancamento)
     tipo?: TipoLancamento;
 
-    @ApiPropertyOptional({
-        example: 'PENDENTE',
-        enum: ['PENDENTE', 'PAGO', 'CANCELADO', 'ATRASADO']
-    })
+    @ApiPropertyOptional({ example: 'PENDENTE' })
     @IsOptional()
     @IsString()
     status?: string;
 
-    @ApiPropertyOptional({ description: 'Data de início no formato YYYY-MM-DD' })
+    @ApiPropertyOptional()
     @IsOptional()
     @IsString()
     dataInicio?: string;
 
-    @ApiPropertyOptional({ description: 'Data de fim no formato YYYY-MM-DD' })
+    @ApiPropertyOptional()
     @IsOptional()
     @IsString()
     dataFim?: string;
+
+    // --- Novos campos para Paginação ---
+    @ApiPropertyOptional({ default: 1 })
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    @Min(1)
+    page?: number = 1;
+
+    @ApiPropertyOptional({ default: 10 })
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    @Min(1)
+    limit?: number = 10;
 }

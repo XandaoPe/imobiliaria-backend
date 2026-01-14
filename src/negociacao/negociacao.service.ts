@@ -1,4 +1,3 @@
-// src/negociacao/negociacao.service.ts
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -21,13 +20,12 @@ export class NegociacaoService {
 
     private async generateNextCodigo(): Promise<string> {
         const counter = await this.counterModel.findOneAndUpdate(
-            { nome: 'negociacao_seq' }, // Alterado de 'id' para 'nome'
+            { nome: 'negociacao_seq' },
             { $inc: { seq: 1 } },
             { new: true, upsert: true }
         );
 
         const ano = new Date().getFullYear();
-        // Formata o número com 4 dígitos (ex: 0001, 0002...)
         const sequencial = counter.seq.toString().padStart(4, '0');
         return `NEG-${ano}-${sequencial}`;
     }
@@ -74,6 +72,7 @@ export class NegociacaoService {
 
         return negociacoes;
     }
+
     async updateStatus(
         negociacaoId: string,
         novoStatus: StatusNegociacao,
@@ -82,14 +81,12 @@ export class NegociacaoService {
         dataAgendamento?: string,
         dadosFinanceiros?: any
     ) {
-        // 1. Buscamos a negociação (findOne já deve retornar um Documento do Mongoose)
         const negociacao = await this.findOne(negociacaoId, empresaId);
 
         if (negociacao.status === StatusNegociacao.FECHADO && novoStatus === StatusNegociacao.FECHADO) {
             throw new BadRequestException('Esta negociação já foi finalizada. Para alterar valores, utilize a opção "Refazer Negociação".');
         }
 
-        // Lógica para Agendamento de Visita
         if (novoStatus === StatusNegociacao.VISITA) {
             if (!dataAgendamento) {
                 throw new BadRequestException('Para mudar para Visita Agendada, é necessário informar a data e hora.');
@@ -103,9 +100,7 @@ export class NegociacaoService {
             }, usuarioPayload);
         }
 
-        // Lógica para Fechamento e Geração Física das Parcelas no Banco
         if (novoStatus === StatusNegociacao.FECHADO && negociacao.status !== StatusNegociacao.FECHADO) {
-
             const imovel = negociacao.imovel as any;
 
             if (!imovel || !imovel.proprietario) {
@@ -113,36 +108,30 @@ export class NegociacaoService {
             }
 
             if (dadosFinanceiros) {
-                // Chamada ao serviço que cria as parcelas na coleção 'Financeiro'
                 await this.financeiroService.gerarFluxoFinanceiroFechamento(
                     negociacao,
                     imovel,
                     dadosFinanceiros
                 );
 
-                // IMPORTANTE: Atualiza o valor acordado e PERSISTE os termos financeiros na Negociação
                 negociacao.valor_acordado = Number(dadosFinanceiros.valorTotal);
-
-                // Atribui o objeto para que ele seja salvo no campo que adicionamos ao Schema
                 negociacao.dadosFinanceiros = {
                     valorTotal: Number(dadosFinanceiros.valorTotal),
                     valorEntrada: Number(dadosFinanceiros.valorEntrada || 0),
                     qtdParcelas: Number(dadosFinanceiros.qtdParcelas),
                     valorParcela: Number(dadosFinanceiros.valorParcela),
                     diaVencimento: dadosFinanceiros.diaVencimento,
-                    ajustePorcentagem: Number(dadosFinanceiros.ajustePorcentagem || 0), // AGORA SALVA
-                    ajusteFixo: Number(dadosFinanceiros.ajusteFixo || 0)               // AGORA SALVA
+                    ajustePorcentagem: Number(dadosFinanceiros.ajustePorcentagem || 0),
+                    ajusteFixo: Number(dadosFinanceiros.ajusteFixo || 0)
                 };
             } else {
                 throw new BadRequestException('Dados financeiros são obrigatórios para concluir a negociação.');
             }
 
-            // Marca o imóvel como indisponível
             await this.imovelService.update(negociacao.imovel._id.toString(), { disponivel: false }, empresaId);
             negociacao.data_fechamento = new Date();
         }
 
-        // Atualização do Status e Timeline
         negociacao.status = novoStatus;
         negociacao.historico.push({
             descricao: `Status alterado para: ${novoStatus}${dadosFinanceiros ? ' (Parcelas Financeiras Geradas)' : ''}`,
@@ -150,21 +139,18 @@ export class NegociacaoService {
             data: new Date()
         });
 
-        // Salva todas as alterações (incluindo o novo objeto dadosFinanceiros)
         const salvo = await negociacao.save();
-
-        // Retorna o objeto completo atualizado
         return this.findOne(salvo._id.toString(), empresaId);
     }
 
     async create(dto: CreateNegociacaoDto, empresaId: string, usuarioNome: string): Promise<NegociacaoDocument> {
         await this.imovelService.findOne(dto.imovel, empresaId);
 
-        const codigo = await this.generateNextCodigo(); // GERA O CÓDIGO AQUI
+        const codigo = await this.generateNextCodigo();
 
         const novaNegociacao = new this.negociacaoModel({
             ...dto,
-            codigo, // SALVA O CÓDIGO
+            codigo,
             empresa: new Types.ObjectId(empresaId),
             historico: [{
                 descricao: `Negociação ${codigo} iniciada por ${usuarioNome}`,
@@ -196,13 +182,9 @@ export class NegociacaoService {
             throw new BadRequestException('Apenas negociações fechadas podem ser estornadas por este método.');
         }
 
-        // 1. Cancela as parcelas que ainda não foram pagas
         await this.financeiroService.cancelarParcelasPendentes(negociacaoId, empresaId);
-
-        // 2. Libera o imóvel
         await this.imovelService.update(negociacao.imovel._id.toString(), { disponivel: true }, empresaId);
 
-        // 3. Atualiza a negociação
         negociacao.status = StatusNegociacao.CANCELADO;
         negociacao.historico.push({
             descricao: `Negociação estornada e cancelada por ${usuarioNome}. Financeiro pendente foi anulado.`,
@@ -217,16 +199,15 @@ export class NegociacaoService {
         negociacaoId: string,
         empresaId: string,
         usuarioPayload: any,
-        gerarNovaProspeccao: boolean = true // Default como true para manter compatibilidade
+        gerarNovaProspeccao: boolean = true
     ) {
-        // 1. Busca a negociação original
         const antiga = await this.findOne(negociacaoId, empresaId);
 
         if (antiga.status !== StatusNegociacao.FECHADO && antiga.status !== StatusNegociacao.CANCELADO) {
             throw new BadRequestException('Apenas negociações fechadas ou canceladas podem ser refeitas.');
         }
 
-        // 2. Se ela ainda estiver como FECHADO, cancelamos o financeiro e liberamos o imóvel
+        // 1. Estorno da negociação antiga
         if (antiga.status === StatusNegociacao.FECHADO) {
             await this.financeiroService.cancelarParcelasPendentes(negociacaoId, empresaId);
             await this.imovelService.update(antiga.imovel._id.toString(), { disponivel: true }, empresaId);
@@ -240,19 +221,23 @@ export class NegociacaoService {
             await antiga.save();
         }
 
-        // 3. Condicional para criar a NOVA negociação
+        // 2. Geração da NOVA negociação com NOVO CÓDIGO
         if (gerarNovaProspeccao) {
+            // Chamamos o gerador para obter o próximo código da sequência (ex: NEG-2026-0005)
+            const novoCodigo = await this.generateNextCodigo();
+
             const novaNegociacao = new this.negociacaoModel({
+                codigo: novoCodigo, // AQUI GARANTIMOS O NOVO CÓDIGO
                 imovel: antiga.imovel._id,
                 cliente: antiga.cliente._id,
                 empresa: antiga.empresa,
                 tipo: antiga.tipo,
                 status: StatusNegociacao.PROSPECCAO,
                 valor_acordado: 0,
-                observacoes_gerais: `Refilmagem da negociação anterior (ID: ${antiga._id})`,
+                observacoes_gerais: `Negociação gerada a partir do estorno da negociação ${antiga.codigo}`,
                 historico: [
                     {
-                        descricao: `Negociação iniciada a partir do estorno da negociação ${antiga._id}`,
+                        descricao: `Nova prospecção #${novoCodigo} iniciada devido ao estorno da negociação anterior #${antiga.codigo}`,
                         usuario_nome: usuarioPayload.nome,
                         data: new Date()
                     }
@@ -260,11 +245,9 @@ export class NegociacaoService {
             });
 
             const salva = await novaNegociacao.save();
-            // Retorna a nova para o frontend redirecionar
             return this.findOne(salva._id.toString(), empresaId);
         }
 
-        // Se NÃO for para gerar nova, retorna a antiga já cancelada e atualizada
         return antiga;
     }
 }

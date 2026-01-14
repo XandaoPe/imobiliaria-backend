@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+// src/financeiro/financeiro.service.ts
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Financeiro, FinanceiroDocument, TipoLancamento, CategoriaLancamento } from './schemas/financeiro.schema';
@@ -16,7 +17,7 @@ export class FinanceiroService {
     async create(createDto: CreateFinanceiroDto, empresaId: string) {
         const novoLancamento = new this.financeiroModel({
             ...createDto,
-            empresa: empresaId,
+            empresa: new Types.ObjectId(empresaId),
         });
         return await novoLancamento.save();
     }
@@ -32,76 +33,102 @@ export class FinanceiroService {
             diaVencimento?: number;
         }
     ) {
-        const lancamentos: any[] = [];
-        const { valorEntrada, qtdParcelas, valorParcela, diaVencimento } = financeiroData;
+        try {
+            const lancamentos: any[] = [];
+            const { valorEntrada, qtdParcelas, valorParcela, diaVencimento } = financeiroData;
 
-        const clienteId = negociacao.cliente._id || negociacao.cliente;
-        const proprietarioId = imovel.proprietario?._id || imovel.proprietario;
-        const diaPadrao = diaVencimento || 10;
+            // Garantia de IDs formatados corretamente para o MongoDB
+            const empresaId = new Types.ObjectId(negociacao.empresa);
+            const negociacaoId = new Types.ObjectId(negociacao._id);
+            const imovelId = new Types.ObjectId(imovel._id);
+            const clienteId = new Types.ObjectId(negociacao.cliente._id || negociacao.cliente);
+            const proprietarioId = imovel.proprietario?._id ? new Types.ObjectId(imovel.proprietario._id) : (imovel.proprietario ? new Types.ObjectId(imovel.proprietario) : null);
 
-        const codNeg = negociacao.codigo || 'S/COD';
+            const diaEscolhido = Number(diaVencimento) || new Date().getDate();
+            const codNeg = negociacao.codigo || 'S/COD';
 
-        if (valorEntrada > 0) {
-            lancamentos.push({
-                empresa: negociacao.empresa,
-                negociacao: negociacao._id,
-                negociacaoCodigo: codNeg,
-                imovel: imovel._id,
-                cliente: clienteId,
-                tipo: TipoLancamento.RECEITA,
-                categoria: negociacao.tipo === 'VENDA' ? CategoriaLancamento.VENDA : CategoriaLancamento.ALUGUEL,
-                valor: Number(valorEntrada),
-                valorPago: Number(valorEntrada),
-                dataVencimento: new Date(),
-                dataPagamento: new Date(),
-                status: 'PAGO',
-                descricao: `[${codNeg}] Entrada - ${negociacao.tipo} - Imóvel ${imovel.codigo || 'S/R'}`,
-                observacoes: 'Gerado automaticamente no fechamento.'
-            });
-        }
-
-        for (let i = 1; i <= qtdParcelas; i++) {
-            const vencimento = new Date();
-            vencimento.setMonth(vencimento.getMonth() + i);
-            vencimento.setDate(diaPadrao);
-
-            lancamentos.push({
-                empresa: negociacao.empresa,
-                negociacao: negociacao._id,
-                negociacaoCodigo: codNeg,
-                imovel: imovel._id,
-                cliente: clienteId,
-                tipo: TipoLancamento.RECEITA,
-                categoria: negociacao.tipo === 'VENDA' ? CategoriaLancamento.VENDA : CategoriaLancamento.ALUGUEL,
-                valor: Number(valorParcela),
-                dataVencimento: new Date(vencimento),
-                status: 'PENDENTE',
-                parcelaNumero: i,
-                descricao: `[${codNeg}] Parcela ${i}/${qtdParcelas} - ${negociacao.tipo}`,
-            });
-
-            if (proprietarioId) {
-                const taxaAdm = 0.10;
-                const valorRepasse = valorParcela * (1 - taxaAdm);
-
+            // 1. GERAÇÃO DA ENTRADA
+            if (Number(valorEntrada) > 0) {
                 lancamentos.push({
-                    empresa: negociacao.empresa,
-                    negociacao: negociacao._id,
+                    empresa: empresaId,
+                    negociacao: negociacaoId,
                     negociacaoCodigo: codNeg,
-                    imovel: imovel._id,
-                    cliente: proprietarioId,
-                    tipo: TipoLancamento.DESPESA,
-                    categoria: CategoriaLancamento.REPASSE,
-                    valor: Number(valorRepasse.toFixed(2)),
-                    dataVencimento: new Date(vencimento),
-                    status: 'PENDENTE',
-                    parcelaNumero: i,
-                    descricao: `[${codNeg}] Repasse Parcela ${i}/${qtdParcelas}`,
+                    imovel: imovelId,
+                    cliente: clienteId,
+                    tipo: TipoLancamento.RECEITA,
+                    categoria: negociacao.tipo === 'VENDA' ? CategoriaLancamento.VENDA : CategoriaLancamento.ALUGUEL,
+                    valor: Number(valorEntrada),
+                    valorPago: Number(valorEntrada),
+                    dataVencimento: new Date(),
+                    dataPagamento: new Date(),
+                    status: 'PAGO',
+                    descricao: `[${codNeg}] Entrada - ${negociacao.tipo} - Imóvel ${imovel.codigo || 'S/R'}`,
+                    observacoes: 'Gerado automaticamente no fechamento.'
                 });
             }
-        }
 
-        return await this.financeiroModel.insertMany(lancamentos);
+            // 2. GERAÇÃO DAS PARCELAS
+            const hoje = new Date();
+            // Ajustamos para o meio do dia para evitar problemas de fuso horário que mudam o dia
+            hoje.setHours(12, 0, 0, 0);
+
+            for (let i = 1; i <= qtdParcelas; i++) {
+                const anoAlvo = hoje.getFullYear();
+                const mesAlvo = hoje.getMonth() + i;
+
+                // Lógica de Vencimento com tratamento de meses curtos
+                let dataVencimento = new Date(anoAlvo, mesAlvo, diaEscolhido, 12, 0, 0);
+
+                if (dataVencimento.getMonth() !== (mesAlvo % 12)) {
+                    dataVencimento = new Date(anoAlvo, mesAlvo + 1, 0, 12, 0, 0);
+                }
+
+                // Lançamento da Receita (Cliente -> Empresa)
+                lancamentos.push({
+                    empresa: empresaId,
+                    negociacao: negociacaoId,
+                    negociacaoCodigo: codNeg,
+                    imovel: imovelId,
+                    cliente: clienteId,
+                    tipo: TipoLancamento.RECEITA,
+                    categoria: negociacao.tipo === 'VENDA' ? CategoriaLancamento.VENDA : CategoriaLancamento.ALUGUEL,
+                    valor: Number(valorParcela),
+                    dataVencimento: new Date(dataVencimento),
+                    status: 'PENDENTE',
+                    parcelaNumero: i,
+                    descricao: `[${codNeg}] Parcela ${i}/${qtdParcelas} - ${negociacao.tipo}`,
+                });
+
+                // Lançamento da Despesa/Repasse (Empresa -> Proprietário)
+                if (proprietarioId) {
+                    const taxaAdm = 0.10;
+                    const valorRepasse = Number(valorParcela) * (1 - taxaAdm);
+
+                    lancamentos.push({
+                        empresa: empresaId,
+                        negociacao: negociacaoId,
+                        negociacaoCodigo: codNeg,
+                        imovel: imovelId,
+                        cliente: proprietarioId,
+                        tipo: TipoLancamento.DESPESA,
+                        categoria: CategoriaLancamento.REPASSE,
+                        valor: Number(valorRepasse.toFixed(2)),
+                        dataVencimento: new Date(dataVencimento),
+                        status: 'PENDENTE',
+                        parcelaNumero: i,
+                        descricao: `[${codNeg}] Repasse Parcela ${i}/${qtdParcelas}`,
+                    });
+                }
+            }
+
+            if (lancamentos.length === 0) return [];
+
+            return await this.financeiroModel.insertMany(lancamentos);
+
+        } catch (error) {
+            console.error('Erro detalhado ao gerar financeiro:', error);
+            throw new BadRequestException('Não foi possível gerar os lançamentos financeiros. Verifique os dados e tente novamente.');
+        }
     }
 
     async registrarPagamento(id: string, empresaId: string, dadosBaixa?: { valorPago?: number; observacoes?: string; dataPagamento?: Date }) {
@@ -114,52 +141,57 @@ export class FinanceiroService {
 
         return this.financeiroModel.findOneAndUpdate(
             {
-                _id: id,
-                empresa: { $in: [new Types.ObjectId(empresaId), String(empresaId)] }
+                _id: new Types.ObjectId(id),
+                empresa: new Types.ObjectId(empresaId)
             },
             { $set: updateData },
             { new: true }
         ).exec();
     }
 
-    /**
-     * MÉTODO CORRIGIDO: Agora aceita o parâmetro 'search' e filtra corretamente
-     */
     async findAllByEmpresa(empresaId: string, filtros: FinanceiroFiltrosDto) {
+        const { page = 1, limit = 10, search, status, tipo, dataInicio, dataFim } = filtros;
+        const skip = (page - 1) * limit;
+
         const query: any = { empresa: new Types.ObjectId(empresaId) };
 
-        // Filtro de Status
-        if (filtros.status) query.status = filtros.status;
+        if (status) query.status = status;
+        if (tipo) query.tipo = tipo;
 
-        // Filtro de Tipo (Receita/Despesa)
-        if (filtros.tipo) query.tipo = filtros.tipo;
-
-        // Filtro de Período de Vencimento
-        if (filtros.dataInicio || filtros.dataFim) {
+        if (dataInicio || dataFim) {
             query.dataVencimento = {};
-            if (filtros.dataInicio) query.dataVencimento.$gte = new Date(filtros.dataInicio);
-            if (filtros.dataFim) query.dataVencimento.$lte = new Date(filtros.dataFim);
+            if (dataInicio) query.dataVencimento.$gte = new Date(dataInicio);
+            if (dataFim) query.dataVencimento.$lte = new Date(dataFim);
         }
 
-        // CORREÇÃO: Lógica de Busca Global (Search)
-        if (filtros.search) {
-            const searchRegex = new RegExp(filtros.search, 'i'); // 'i' para ignorar maiúsculas/minúsculas
+        if (search) {
+            const searchRegex = new RegExp(search, 'i');
             query.$or = [
                 { descricao: searchRegex },
                 { negociacaoCodigo: searchRegex },
-                // Se quiser buscar por campos de texto de IDs populados, 
-                // o ideal é fazer via Aggregate ou filtrar o search após o populate.
-                // Aqui filtramos campos diretos do schema Financeiro.
             ];
         }
 
-        return await this.financeiroModel
-            .find(query)
-            .populate('cliente', 'nome')
-            .populate('imovel', 'codigo endereco') // Adicionado para facilitar visualização na lista
-            .sort({ dataVencimento: 1 })
-            .lean()
-            .exec();
+        const [data, total] = await Promise.all([
+            this.financeiroModel
+                .find(query)
+                .populate('cliente', 'nome')
+                .populate('imovel', 'codigo endereco')
+                .sort({ dataVencimento: 1 })
+                .skip(skip)
+                .limit(limit)
+                .lean()
+                .exec(),
+            this.financeiroModel.countDocuments(query).exec(),
+        ]);
+
+        return {
+            data,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+        };
     }
 
     async getResumoMensal(empresaId: string) {
@@ -181,17 +213,17 @@ export class FinanceiroService {
 
     async buscarDadosParaRecibo(id: string, empresaId: string) {
         const lancamento = await this.financeiroModel
-            .findOne({ _id: id, empresa: new Types.ObjectId(empresaId) })
+            .findOne({ _id: new Types.ObjectId(id), empresa: new Types.ObjectId(empresaId) })
             .populate('cliente', 'nome')
             .exec();
 
-        const empresa = await this.empresaModel.findById(empresaId).exec();
+        const empresa = await this.empresaModel.findById(new Types.ObjectId(empresaId)).exec();
         if (!lancamento || !empresa) throw new NotFoundException('Dados insuficientes.');
         return { lancamento, empresa };
     }
 
     async buscarDadosParaReciboSimples(id: string) {
-        const lancamento = await this.financeiroModel.findById(id).populate('cliente', 'nome').exec();
+        const lancamento = await this.financeiroModel.findById(new Types.ObjectId(id)).populate('cliente', 'nome').exec();
         if (!lancamento) return null;
         const empresa = await this.empresaModel.findById(lancamento.empresa).exec();
         return { lancamento, empresa };
