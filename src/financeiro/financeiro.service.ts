@@ -24,32 +24,54 @@ export class FinanceiroService {
         return await novoLancamento.save();
     }
 
-    async gerarFluxoAluguel(negociacao: any, imovel: ImovelDocument) {
+    async gerarFluxoFinanceiroFechamento(
+        negociacao: any,
+        imovel: ImovelDocument,
+        financeiroData: {
+            valorTotal: number;
+            valorEntrada: number;
+            qtdParcelas: number;
+            valorParcela: number;
+        }
+    ) {
         const parcelas: any[] = [];
-        const meses = 12;
+        const { valorTotal, valorEntrada, qtdParcelas, valorParcela } = financeiroData;
 
-        for (let i = 0; i < meses; i++) {
-            // 1. CRIAR A VARIÁVEL VENCIMENTO DENTRO DO LOOP
-            const vencimento = new Date(negociacao.data_inicio_contrato);
-            vencimento.setMonth(vencimento.getMonth() + i);
-            vencimento.setDate(negociacao.dia_vencimento_aluguel || 10);
-
-            // 2. Parcela de Receita (Inquilino -> Imobiliária)
+        // 1. Lançamento da Entrada (se houver)
+        if (valorEntrada > 0) {
             parcelas.push({
                 empresa: negociacao.empresa,
                 imovel: imovel._id,
                 cliente: negociacao.cliente,
                 tipo: TipoLancamento.RECEITA,
-                categoria: CategoriaLancamento.ALUGUEL,
-                valor: negociacao.valor_acordado,
-                dataVencimento: new Date(vencimento), // Usar cópia da data
+                categoria: negociacao.tipo === 'VENDA' ? CategoriaLancamento.VENDA : CategoriaLancamento.ALUGUEL,
+                valor: valorEntrada,
+                dataVencimento: new Date(), // Entrada é hoje
+                status: 'PAGO', // Assume-se que a entrada é paga no ato
+                descricao: `Entrada - Negociação ${negociacao.tipo}`,
+            });
+        }
+
+        // 2. Gerar as parcelas restantes
+        for (let i = 0; i < qtdParcelas; i++) {
+            const vencimento = new Date();
+            vencimento.setMonth(vencimento.getMonth() + (i + 1));
+            vencimento.setDate(negociacao.dia_vencimento_aluguel || 10);
+
+            parcelas.push({
+                empresa: negociacao.empresa,
+                imovel: imovel._id,
+                cliente: negociacao.cliente,
+                tipo: TipoLancamento.RECEITA,
+                categoria: negociacao.tipo === 'VENDA' ? CategoriaLancamento.VENDA : CategoriaLancamento.ALUGUEL,
+                valor: valorParcela,
+                dataVencimento: vencimento,
                 status: 'PENDENTE',
                 parcelaNumero: i + 1,
-                descricao: `Aluguel ${i + 1}/${meses}`,
+                descricao: `Parcela ${i + 1}/${qtdParcelas} - ${negociacao.tipo}`,
             });
 
-            // 3. Parcela de Repasse (Imobiliária -> Proprietário)
-            // Só adiciona se o imóvel tiver proprietário para evitar o erro de validação
+            // 3. Lógica de Repasse (Opcional: Ajuste a % conforme sua regra de negócio)
             if (imovel.proprietario) {
                 parcelas.push({
                     empresa: negociacao.empresa,
@@ -57,11 +79,11 @@ export class FinanceiroService {
                     cliente: imovel.proprietario,
                     tipo: TipoLancamento.DESPESA,
                     categoria: CategoriaLancamento.REPASSE,
-                    valor: negociacao.valor_acordado * 0.9,
-                    dataVencimento: new Date(vencimento), // Usar cópia da data
+                    valor: valorParcela * 0.9, // Exemplo: 10% de taxa administrativa
+                    dataVencimento: vencimento,
                     status: 'PENDENTE',
                     parcelaNumero: i + 1,
-                    descricao: `Repasse Aluguel ${i + 1}/${meses}`,
+                    descricao: `Repasse Parcela ${i + 1}/${qtdParcelas}`,
                 });
             }
         }

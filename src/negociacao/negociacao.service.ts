@@ -30,19 +30,13 @@ export class NegociacaoService {
         return negociacao;
     }
 
-    /**
-     * Listagem com busca textual em campos populados e filtro por status
-     */
     async findAll(empresaId: string, search?: string, status?: string) {
-        // 1. Criamos o filtro básico por empresa
         const query: any = { empresa: new Types.ObjectId(empresaId) };
 
-        // 2. Filtro por Status
         if (status && status !== 'TODOS') {
             query.status = status;
         }
 
-        // 3. Executamos o find com populate
         let negociacoes = await this.negociacaoModel
             .find(query)
             .populate('imovel', 'titulo endereco cidade')
@@ -50,7 +44,6 @@ export class NegociacaoService {
             .sort({ updatedAt: -1 })
             .exec();
 
-        // 4. Filtro de busca textual via código (mais seguro que Aggregate para relacionamentos)
         if (search) {
             const searchLower = search.toLowerCase();
             negociacoes = negociacoes.filter(item => {
@@ -72,7 +65,8 @@ export class NegociacaoService {
         novoStatus: StatusNegociacao,
         empresaId: string,
         usuarioPayload: any,
-        dataAgendamento?: string
+        dataAgendamento?: string,
+        dadosFinanceiros?: any
     ) {
         const negociacao = await this.negociacaoModel.findOne({
             _id: negociacaoId,
@@ -81,7 +75,8 @@ export class NegociacaoService {
 
         if (!negociacao) throw new NotFoundException('Negociação não encontrada');
 
-        if (novoStatus === 'VISITA') {
+        // Lógica para Agendamento de Visita
+        if (novoStatus === StatusNegociacao.VISITA) {
             if (!dataAgendamento) {
                 throw new BadRequestException('Para mudar para Visita Agendada, é necessário informar a data e hora.');
             }
@@ -94,32 +89,30 @@ export class NegociacaoService {
             }, usuarioPayload);
         }
 
+        // Lógica para Fechamento e Financeiro
         if (novoStatus === StatusNegociacao.FECHADO && negociacao.status !== StatusNegociacao.FECHADO) {
             const imovel = await this.imovelService.findOne(negociacao.imovel.toString(), empresaId);
 
             if (!imovel || !imovel.proprietario) {
-                throw new BadRequestException('Não é possível fechar a negociação: Imóvel sem proprietário vinculado.');
+                throw new BadRequestException('Não é possível fechar: Imóvel sem proprietário vinculado.');
             }
 
-            await this.financeiroService.gerarFluxoAluguel(negociacao, imovel as any);
+            if (dadosFinanceiros) {
+                await this.financeiroService.gerarFluxoFinanceiroFechamento(negociacao, imovel as any, dadosFinanceiros);
+                negociacao.valor_acordado = dadosFinanceiros.valorTotal;
+            }
+
+            await this.imovelService.update(negociacao.imovel.toString(), { disponivel: false }, empresaId);
+            negociacao.data_fechamento = new Date();
         }
 
+        // Atualização do Histórico
         negociacao.status = novoStatus;
-
         negociacao.historico.push({
-            descricao: `Status alterado para: ${novoStatus}`,
+            descricao: `Status alterado para: ${novoStatus}${dadosFinanceiros ? ' (Financeiro Gerado)' : ''}`,
             usuario_nome: usuarioPayload.nome || 'Sistema',
             data: new Date()
         });
-
-        if (novoStatus === StatusNegociacao.ASSINADO || novoStatus === StatusNegociacao.FECHADO) {
-            await this.imovelService.update(
-                negociacao.imovel.toString(),
-                { disponivel: false },
-                empresaId
-            );
-            negociacao.data_fechamento = new Date();
-        }
 
         const salvo = await negociacao.save();
         return this.findOne(salvo._id.toString(), empresaId);
@@ -133,9 +126,8 @@ export class NegociacaoService {
             valor_acordado: dto.valor_acordado || 0,
             empresa: new Types.ObjectId(empresaId),
             historico: [
-                ...(dto.historico || []),
                 {
-                    descricao: `Negociação registrada no sistema por ${usuarioNome}`,
+                    descricao: `Negociação iniciada por ${usuarioNome}`,
                     usuario_nome: usuarioNome,
                     data: new Date()
                 }
@@ -155,6 +147,6 @@ export class NegociacaoService {
                 }
             },
             { new: true }
-        ).populate('cliente', 'nome telefone endereco cidade').populate('imovel');
+        ).populate('cliente').populate('imovel');
     }
 }
