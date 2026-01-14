@@ -39,15 +39,13 @@ export class FinanceiroService {
         const proprietarioId = imovel.proprietario?._id || imovel.proprietario;
         const diaPadrao = diaVencimento || 10;
 
-        // Pegamos o código da negociação (que agora existe no schema de negociação)
         const codNeg = negociacao.codigo || 'S/COD';
 
-        // 1. Lançamento da Entrada
         if (valorEntrada > 0) {
             lancamentos.push({
                 empresa: negociacao.empresa,
                 negociacao: negociacao._id,
-                negociacaoCodigo: codNeg, // Vínculo direto com o código sequencial
+                negociacaoCodigo: codNeg,
                 imovel: imovel._id,
                 cliente: clienteId,
                 tipo: TipoLancamento.RECEITA,
@@ -62,17 +60,15 @@ export class FinanceiroService {
             });
         }
 
-        // 2. Geração das Parcelas
         for (let i = 1; i <= qtdParcelas; i++) {
             const vencimento = new Date();
             vencimento.setMonth(vencimento.getMonth() + i);
             vencimento.setDate(diaPadrao);
 
-            // Receita da Imobiliária (Valor que o cliente paga)
             lancamentos.push({
                 empresa: negociacao.empresa,
                 negociacao: negociacao._id,
-                negociacaoCodigo: codNeg, // Vínculo aqui também
+                negociacaoCodigo: codNeg,
                 imovel: imovel._id,
                 cliente: clienteId,
                 tipo: TipoLancamento.RECEITA,
@@ -84,15 +80,14 @@ export class FinanceiroService {
                 descricao: `[${codNeg}] Parcela ${i}/${qtdParcelas} - ${negociacao.tipo}`,
             });
 
-            // Repasse ao Proprietário
             if (proprietarioId) {
-                const taxaAdm = 0.10; // 10%
+                const taxaAdm = 0.10;
                 const valorRepasse = valorParcela * (1 - taxaAdm);
 
                 lancamentos.push({
                     empresa: negociacao.empresa,
                     negociacao: negociacao._id,
-                    negociacaoCodigo: codNeg, // Vínculo aqui também
+                    negociacaoCodigo: codNeg,
                     imovel: imovel._id,
                     cliente: proprietarioId,
                     tipo: TipoLancamento.DESPESA,
@@ -127,20 +122,41 @@ export class FinanceiroService {
         ).exec();
     }
 
+    /**
+     * MÉTODO CORRIGIDO: Agora aceita o parâmetro 'search' e filtra corretamente
+     */
     async findAllByEmpresa(empresaId: string, filtros: FinanceiroFiltrosDto) {
         const query: any = { empresa: new Types.ObjectId(empresaId) };
 
+        // Filtro de Status
         if (filtros.status) query.status = filtros.status;
+
+        // Filtro de Tipo (Receita/Despesa)
         if (filtros.tipo) query.tipo = filtros.tipo;
+
+        // Filtro de Período de Vencimento
         if (filtros.dataInicio || filtros.dataFim) {
             query.dataVencimento = {};
             if (filtros.dataInicio) query.dataVencimento.$gte = new Date(filtros.dataInicio);
             if (filtros.dataFim) query.dataVencimento.$lte = new Date(filtros.dataFim);
         }
 
+        // CORREÇÃO: Lógica de Busca Global (Search)
+        if (filtros.search) {
+            const searchRegex = new RegExp(filtros.search, 'i'); // 'i' para ignorar maiúsculas/minúsculas
+            query.$or = [
+                { descricao: searchRegex },
+                { negociacaoCodigo: searchRegex },
+                // Se quiser buscar por campos de texto de IDs populados, 
+                // o ideal é fazer via Aggregate ou filtrar o search após o populate.
+                // Aqui filtramos campos diretos do schema Financeiro.
+            ];
+        }
+
         return await this.financeiroModel
             .find(query)
             .populate('cliente', 'nome')
+            .populate('imovel', 'codigo endereco') // Adicionado para facilitar visualização na lista
             .sort({ dataVencimento: 1 })
             .lean()
             .exec();
