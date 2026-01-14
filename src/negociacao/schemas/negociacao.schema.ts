@@ -10,7 +10,7 @@ export enum StatusNegociacao {
     ANALISE_DOCUMENTACAO = 'ANALISE_DOCUMENTACAO',
     CONTRATO_EM_REVISAO = 'CONTRATO_EM_REVISAO',
     ASSINADO = 'ASSINADO',
-    FECHADO = 'FECHADO', // ou CONCLUIDO
+    FECHADO = 'FECHADO',
     PERDIDO = 'PERDIDO',
     CANCELADO = 'CANCELADO',
 }
@@ -20,7 +20,7 @@ export enum TipoNegociacao {
     ALUGUEL = 'ALUGUEL',
 }
 
-@Schema({ _id: false }) // Sub-schema para o histórico (Timeline)
+@Schema({ _id: false })
 class HistoricoEvento {
     @Prop({ default: Date.now })
     data: Date;
@@ -29,10 +29,37 @@ class HistoricoEvento {
     descricao: string;
 
     @Prop()
-    usuario_nome: string; // Nome do corretor que fez a anotação
+    usuario_nome: string;
 }
 
-@Schema({ timestamps: true })
+@Schema({ _id: false })
+export class DadosFinanceiros {
+    @Prop({ required: true })
+    valorTotal: number;
+
+    @Prop({ default: 0 })
+    valorEntrada: number;
+
+    @Prop({ required: true })
+    qtdParcelas: number;
+
+    @Prop({ required: true })
+    valorParcela: number;
+
+    @Prop()
+    diaVencimento?: number;
+
+    @Prop({ default: 0 })
+    ajustePorcentagem: number;
+
+    @Prop({ default: 0 })
+    ajusteFixo: number;
+}
+
+@Schema({
+    timestamps: true,
+    collection: 'negociacaos'
+})
 export class Negociacao {
     @Prop({ type: Types.ObjectId, ref: 'Imovel', required: true })
     imovel: Types.ObjectId;
@@ -46,30 +73,23 @@ export class Negociacao {
     @Prop({ required: true, enum: TipoNegociacao })
     tipo: TipoNegociacao;
 
-    @Prop({ required: true, enum: StatusNegociacao, default: StatusNegociacao.PROPOSTA })
+    @Prop({ required: true, enum: StatusNegociacao, default: StatusNegociacao.PROSPECCAO })
     status: StatusNegociacao;
 
-    @Prop({ required: true })
+    @Prop({ required: true, default: 0 })
     valor_acordado: number;
 
     @Prop()
     data_fechamento: Date;
 
-    // Campos específicos para Aluguel (opcionais se for Venda)
-    @Prop()
-    data_inicio_contrato?: Date;
-
-    @Prop()
-    data_fim_contrato?: Date;
-
-    @Prop()
-    dia_vencimento_aluguel?: number;
-
     @Prop({ type: [HistoricoEvento], default: [] })
     historico: HistoricoEvento[];
 
-    @Prop()
+    @Prop({ default: "" })
     observacoes_gerais: string;
+
+    @Prop({ type: DadosFinanceiros })
+    dadosFinanceiros?: DadosFinanceiros;
 }
 
 export const NegociacaoSchema = SchemaFactory.createForClass(Negociacao);

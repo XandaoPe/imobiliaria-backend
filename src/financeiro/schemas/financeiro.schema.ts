@@ -1,8 +1,6 @@
-// src/financeiro/schemas/financeiro.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-// ⭐️ Certifique-se de que esta linha existe!
 export type FinanceiroDocument = Financeiro & Document;
 
 export enum TipoLancamento {
@@ -29,6 +27,10 @@ export class Financeiro {
     @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true })
     cliente: Types.ObjectId;
 
+    // ADICIONADO: Referência para a Negociação que originou este lançamento
+    @Prop({ type: Types.ObjectId, ref: 'Negociacao', required: false })
+    negociacao: Types.ObjectId;
+
     @Prop({ required: true, enum: TipoLancamento })
     tipo: TipoLancamento;
 
@@ -37,6 +39,9 @@ export class Financeiro {
 
     @Prop({ required: true })
     valor: number;
+
+    @Prop()
+    valorPago?: number;
 
     @Prop({ required: true })
     dataVencimento: Date;
@@ -52,6 +57,9 @@ export class Financeiro {
 
     @Prop()
     descricao: string;
+
+    @Prop()
+    observacoes?: string;
 }
 
 export const FinanceiroSchema = SchemaFactory.createForClass(Financeiro);

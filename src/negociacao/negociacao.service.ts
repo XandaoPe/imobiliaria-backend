@@ -1,3 +1,4 @@
+// src/negociacao/negociacao.service.ts
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -17,11 +18,11 @@ export class NegociacaoService {
         private financeiroService: FinanceiroService,
     ) { }
 
-    async findOne(id: string, empresaId: string): Promise<Negociacao> {
+    async findOne(id: string, empresaId: string): Promise<NegociacaoDocument> {
         const negociacao = await this.negociacaoModel
             .findOne({ _id: id, empresa: new Types.ObjectId(empresaId) })
             .populate('cliente', 'nome telefone email endereco cidade')
-            .populate('imovel', 'titulo endereco cidade proprietario')
+            .populate('imovel', 'titulo endereco cidade proprietario codigo')
             .exec();
 
         if (!negociacao) {
@@ -59,7 +60,6 @@ export class NegociacaoService {
 
         return negociacoes;
     }
-
     async updateStatus(
         negociacaoId: string,
         novoStatus: StatusNegociacao,
@@ -68,12 +68,8 @@ export class NegociacaoService {
         dataAgendamento?: string,
         dadosFinanceiros?: any
     ) {
-        const negociacao = await this.negociacaoModel.findOne({
-            _id: negociacaoId,
-            empresa: new Types.ObjectId(empresaId)
-        });
-
-        if (!negociacao) throw new NotFoundException('Negociação não encontrada');
+        // 1. Buscamos a negociação (findOne já deve retornar um Documento do Mongoose)
+        const negociacao = await this.findOne(negociacaoId, empresaId);
 
         // Lógica para Agendamento de Visita
         if (novoStatus === StatusNegociacao.VISITA) {
@@ -82,43 +78,69 @@ export class NegociacaoService {
             }
 
             await this.agendamentoService.create({
-                imovelId: negociacao.imovel.toString(),
-                clienteId: negociacao.cliente.toString(),
+                imovelId: negociacao.imovel._id.toString(),
+                clienteId: negociacao.cliente._id.toString(),
                 dataHora: dataAgendamento,
                 status: StatusAgendamento.PENDENTE
             }, usuarioPayload);
         }
 
-        // Lógica para Fechamento e Financeiro
+        // Lógica para Fechamento e Geração Física das Parcelas no Banco
         if (novoStatus === StatusNegociacao.FECHADO && negociacao.status !== StatusNegociacao.FECHADO) {
-            const imovel = await this.imovelService.findOne(negociacao.imovel.toString(), empresaId);
+
+            const imovel = negociacao.imovel as any;
 
             if (!imovel || !imovel.proprietario) {
-                throw new BadRequestException('Não é possível fechar: Imóvel sem proprietário vinculado.');
+                throw new BadRequestException('Não é possível fechar: Imóvel sem proprietário vinculado no cadastro.');
             }
 
             if (dadosFinanceiros) {
-                await this.financeiroService.gerarFluxoFinanceiroFechamento(negociacao, imovel as any, dadosFinanceiros);
-                negociacao.valor_acordado = dadosFinanceiros.valorTotal;
+                // Chamada ao serviço que cria as parcelas na coleção 'Financeiro'
+                await this.financeiroService.gerarFluxoFinanceiroFechamento(
+                    negociacao,
+                    imovel,
+                    dadosFinanceiros
+                );
+
+                // IMPORTANTE: Atualiza o valor acordado e PERSISTE os termos financeiros na Negociação
+                negociacao.valor_acordado = Number(dadosFinanceiros.valorTotal);
+
+                // Atribui o objeto para que ele seja salvo no campo que adicionamos ao Schema
+                negociacao.dadosFinanceiros = {
+                    valorTotal: Number(dadosFinanceiros.valorTotal),
+                    valorEntrada: Number(dadosFinanceiros.valorEntrada || 0),
+                    qtdParcelas: Number(dadosFinanceiros.qtdParcelas),
+                    valorParcela: Number(dadosFinanceiros.valorParcela),
+                    diaVencimento: dadosFinanceiros.diaVencimento,
+                    ajustePorcentagem: Number(dadosFinanceiros.ajustePorcentagem || 0), // AGORA SALVA
+                    ajusteFixo: Number(dadosFinanceiros.ajusteFixo || 0)               // AGORA SALVA
+                };
+            } else {
+                throw new BadRequestException('Dados financeiros são obrigatórios para concluir a negociação.');
             }
 
-            await this.imovelService.update(negociacao.imovel.toString(), { disponivel: false }, empresaId);
+            // Marca o imóvel como indisponível
+            await this.imovelService.update(negociacao.imovel._id.toString(), { disponivel: false }, empresaId);
             negociacao.data_fechamento = new Date();
         }
 
-        // Atualização do Histórico
+        // Atualização do Status e Timeline
         negociacao.status = novoStatus;
         negociacao.historico.push({
-            descricao: `Status alterado para: ${novoStatus}${dadosFinanceiros ? ' (Financeiro Gerado)' : ''}`,
+            descricao: `Status alterado para: ${novoStatus}${dadosFinanceiros ? ' (Parcelas Financeiras Geradas)' : ''}`,
             usuario_nome: usuarioPayload.nome || 'Sistema',
             data: new Date()
         });
 
+        // Salva todas as alterações (incluindo o novo objeto dadosFinanceiros)
         const salvo = await negociacao.save();
+
+        // Retorna o objeto completo atualizado
         return this.findOne(salvo._id.toString(), empresaId);
     }
 
-    async create(dto: CreateNegociacaoDto, empresaId: string, usuarioNome: string): Promise<Negociacao> {
+    async create(dto: CreateNegociacaoDto, empresaId: string, usuarioNome: string): Promise<NegociacaoDocument> {
+        // Valida se o imóvel existe
         await this.imovelService.findOne(dto.imovel, empresaId);
 
         const novaNegociacao = new this.negociacaoModel({

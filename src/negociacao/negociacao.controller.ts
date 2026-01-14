@@ -1,3 +1,4 @@
+// src/negociacao/negociacao.controller.ts
 import { Controller, Get, Post, Body, Patch, Param, UseGuards, Req, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
@@ -5,6 +6,7 @@ import { NegociacaoService } from './negociacao.service';
 import { CreateNegociacaoDto } from './dto/create-negociacao.dto';
 import { StatusNegociacao } from './schemas/negociacao.schema';
 import type { RequestWithUser } from '../cliente/cliente.controller';
+import { UpdateStatusNegociacaoDto } from './dto/update-status-negociacao.dto';
 
 @ApiTags('Negociações (CRM)')
 @ApiBearerAuth('access-token')
@@ -29,30 +31,33 @@ export class NegociacaoController {
         @Query('search') search?: string,
         @Query('status') status?: string
     ) {
-        // Agora passamos os filtros de busca para o Service
         return this.negociacaoService.findAll(req.user.empresa, search, status);
     }
 
     @Patch(':id')
+    @ApiOperation({ summary: 'Atualiza status ou adiciona histórico na negociação' })
     async update(
         @Param('id') id: string,
-        @Body() body: { status?: StatusNegociacao; descricao?: string; dataAgendamento?: string },
+        @Body() body: UpdateStatusNegociacaoDto,
         @Req() req: RequestWithUser
     ) {
         const empresaId = req.user.empresa;
         const usuarioPayload = req.user;
         const usuarioNome = req.user.nome || 'Sistema';
 
+        // Se houver alteração de status, chama o updateStatus que agora recebe dadosFinanceiros
         if (body.status) {
             await this.negociacaoService.updateStatus(
                 id,
                 body.status,
                 empresaId,
                 usuarioPayload,
-                body.dataAgendamento
+                body.dataAgendamento,
+                body.dadosFinanceiros // Injeção dos dados para o fluxo financeiro
             );
         }
 
+        // Se houver uma descrição, adiciona ao histórico
         if (body.descricao) {
             return await this.negociacaoService.addHistorico(
                 id,
@@ -62,8 +67,8 @@ export class NegociacaoController {
             );
         }
 
-        // Importante: atualizar o findAll aqui também se quiser manter o retorno filtrado após o patch
-        return this.negociacaoService.findAll(empresaId);
+        // Retorna a negociação atualizada
+        return this.negociacaoService.findOne(id, empresaId);
     }
 
     @Post(':id/historico')
