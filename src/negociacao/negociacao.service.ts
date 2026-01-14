@@ -71,6 +71,10 @@ export class NegociacaoService {
         // 1. Buscamos a negociação (findOne já deve retornar um Documento do Mongoose)
         const negociacao = await this.findOne(negociacaoId, empresaId);
 
+        if (negociacao.status === StatusNegociacao.FECHADO && novoStatus === StatusNegociacao.FECHADO) {
+            throw new BadRequestException('Esta negociação já foi finalizada. Para alterar valores, utilize a opção "Refazer Negociação".');
+        }
+        
         // Lógica para Agendamento de Visita
         if (novoStatus === StatusNegociacao.VISITA) {
             if (!dataAgendamento) {
@@ -170,5 +174,75 @@ export class NegociacaoService {
             },
             { new: true }
         ).populate('cliente').populate('imovel');
+    }
+
+    async cancelarNegociacaoFechada(negociacaoId: string, empresaId: string, usuarioNome: string) {
+        const negociacao = await this.findOne(negociacaoId, empresaId);
+
+        if (negociacao.status !== StatusNegociacao.FECHADO) {
+            throw new BadRequestException('Apenas negociações fechadas podem ser estornadas por este método.');
+        }
+
+        // 1. Cancela as parcelas que ainda não foram pagas
+        await this.financeiroService.cancelarParcelasPendentes(negociacaoId, empresaId);
+
+        // 2. Libera o imóvel
+        await this.imovelService.update(negociacao.imovel._id.toString(), { disponivel: true }, empresaId);
+
+        // 3. Atualiza a negociação
+        negociacao.status = StatusNegociacao.CANCELADO;
+        negociacao.historico.push({
+            descricao: `Negociação estornada e cancelada por ${usuarioNome}. Financeiro pendente foi anulado.`,
+            usuario_nome: usuarioNome,
+            data: new Date()
+        });
+
+        return await negociacao.save();
+    }
+
+    async refazerNegociacao(negociacaoId: string, empresaId: string, usuarioPayload: any) {
+        // 1. Busca a negociação original
+        const antiga = await this.findOne(negociacaoId, empresaId);
+
+        if (antiga.status !== StatusNegociacao.FECHADO && antiga.status !== StatusNegociacao.CANCELADO) {
+            throw new BadRequestException('Apenas negociações fechadas ou canceladas podem ser refeitas.');
+        }
+
+        // 2. Se ela ainda estiver como FECHADO, precisamos cancelar o financeiro dela primeiro
+        if (antiga.status === StatusNegociacao.FECHADO) {
+            await this.financeiroService.cancelarParcelasPendentes(negociacaoId, empresaId);
+            await this.imovelService.update(antiga.imovel._id.toString(), { disponivel: true }, empresaId);
+
+            antiga.status = StatusNegociacao.CANCELADO;
+            antiga.historico.push({
+                descricao: `Negociação cancelada para ser refeita por ${usuarioPayload.nome}.`,
+                usuario_nome: usuarioPayload.nome,
+                data: new Date()
+            });
+            await antiga.save();
+        }
+
+        // 3. Cria a NOVA negociação baseada nos dados da antiga
+        const novaNegociacao = new this.negociacaoModel({
+            imovel: antiga.imovel._id,
+            cliente: antiga.cliente._id,
+            empresa: antiga.empresa,
+            tipo: antiga.tipo,
+            status: StatusNegociacao.PROSPECCAO, // Começa do zero
+            valor_acordado: 0,
+            observacoes_gerais: `Refilmagem da negociação anterior (ID: ${antiga._id})`,
+            historico: [
+                {
+                    descricao: `Negociação iniciada a partir do estorno da negociação ${antiga._id}`,
+                    usuario_nome: usuarioPayload.nome,
+                    data: new Date()
+                }
+            ]
+        });
+
+        const salva = await novaNegociacao.save();
+
+        // Retorna a nova negociação para o frontend redirecionar o usuário
+        return this.findOne(salva._id.toString(), empresaId);
     }
 }

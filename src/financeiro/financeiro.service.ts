@@ -174,4 +174,16 @@ export class FinanceiroService {
         const empresa = await this.empresaModel.findById(lancamento.empresa).exec();
         return { lancamento, empresa };
     }
+
+    async cancelarParcelasPendentes(negociacaoId: string, empresaId: string) {
+        // Cancela apenas o que não foi pago. O que já foi pago fica no histórico financeiro.
+        return await this.financeiroModel.updateMany(
+            {
+                negociacao: new Types.ObjectId(negociacaoId),
+                empresa: new Types.ObjectId(empresaId),
+                status: 'PENDENTE'
+            },
+            { $set: { status: 'CANCELADO' } }
+        );
+    }
 }

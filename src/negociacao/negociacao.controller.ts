@@ -81,4 +81,13 @@ export class NegociacaoController {
         const usuarioNome = req.user.nome || 'Corretor';
         return this.negociacaoService.addHistorico(id, req.user.empresa, descricao, usuarioNome);
     }
+
+    @Post(':id/refazer')
+    @ApiOperation({ summary: 'Cancela a negociação atual e cria uma nova cópia para correção' })
+    async refazer(
+        @Param('id') id: string,
+        @Req() req: RequestWithUser
+    ) {
+        return await this.negociacaoService.refazerNegociacao(id, req.user.empresa, req.user);
+    }
 }
