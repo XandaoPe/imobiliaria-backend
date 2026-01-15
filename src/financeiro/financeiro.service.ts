@@ -196,18 +196,124 @@ export class FinanceiroService {
 
     async getResumoMensal(empresaId: string) {
         const hoje = new Date();
-        const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-        const ultimoDiaMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
 
-        const lancamentos = await this.financeiroModel.find({
-            empresa: new Types.ObjectId(empresaId),
-            dataVencimento: { $gte: primeiroDiaMes, $lte: ultimoDiaMes }
-        }).exec();
+        // 1. Busca TOTAIS GERAIS (Cards) - Sem limite de mês
+        // Filtramos apenas por Empresa e ignoramos Cancelados
+        const totaisGerais = await this.financeiroModel.aggregate([
+            {
+                $match: {
+                    empresa: new Types.ObjectId(empresaId),
+                    status: { $ne: 'CANCELADO' }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    receitas: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$tipo", TipoLancamento.RECEITA] },
+                                { $ifNull: ["$valorPago", "$valor"] },
+                                0
+                            ]
+                        }
+                    },
+                    despesas: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$tipo", TipoLancamento.DESPESA] },
+                                "$valor",
+                                0
+                            ]
+                        }
+                    },
+                    pendentes: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ["$status", "PENDENTE"] },
+                                        { $eq: ["$tipo", TipoLancamento.RECEITA] }
+                                    ]
+                                },
+                                "$valor",
+                                0
+                            ]
+                        }
+                    }
+                }
+            }
+        ]);
+
+        const resumoCards = totaisGerais[0] || { receitas: 0, despesas: 0, pendentes: 0 };
+
+        // 2. Busca dados para o GRÁFICO (Últimos 6 meses + Próximos 6 meses para cobrir futuro)
+        // Aumentamos o range para o gráfico não ficar vazio se houver apenas parcelas futuras
+        const dozeMesesAtras = new Date();
+        dozeMesesAtras.setMonth(hoje.getMonth() - 6);
+        dozeMesesAtras.setDate(1);
+
+        const dadosGraficoRaw = await this.financeiroModel.aggregate([
+            {
+                $match: {
+                    empresa: new Types.ObjectId(empresaId),
+                    dataVencimento: { $gte: dozeMesesAtras },
+                    status: { $ne: 'CANCELADO' }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        mes: { $month: "$dataVencimento" },
+                        ano: { $year: "$dataVencimento" },
+                        tipo: "$tipo"
+                    },
+                    total: { $sum: "$valor" },
+                    pago: {
+                        $sum: { $cond: [{ $eq: ["$status", "PAGO"] }, "$valor", 0] }
+                    }
+                }
+            },
+            { $sort: { "_id.ano": 1, "_id.mes": 1 } }
+        ]);
+
+        // 3. Formatação para o Frontend
+        const mesesNomes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+        const chartMap = new Map();
+
+        // Gerar labels para os últimos 3 meses e próximos 3 meses (6 meses total) para manter o gráfico dinâmico
+        for (let i = -3; i <= 2; i++) {
+            const d = new Date();
+            d.setMonth(hoje.getMonth() + i);
+            const m = d.getMonth() + 1;
+            const a = d.getFullYear();
+            chartMap.set(`${m}-${a}`, {
+                mes: mesesNomes[m - 1],
+                recebido: 0,
+                pago: 0,
+                pendente: 0
+            });
+        }
+
+        // Preenche com os dados reais
+        dadosGraficoRaw.forEach(item => {
+            const chave = `${item._id.mes}-${item._id.ano}`;
+            if (chartMap.has(chave)) {
+                const mesData = chartMap.get(chave);
+                if (item._id.tipo === TipoLancamento.RECEITA) {
+                    mesData.recebido += item.pago;
+                    mesData.pendente += (item.total - item.pago);
+                } else {
+                    mesData.pago += item.total;
+                }
+            }
+        });
 
         return {
-            receitas: lancamentos.filter(l => l.tipo === TipoLancamento.RECEITA).reduce((acc, l) => acc + (l.valorPago || l.valor), 0),
-            despesas: lancamentos.filter(l => l.tipo === TipoLancamento.DESPESA).reduce((acc, l) => acc + l.valor, 0),
-            pendentes: lancamentos.filter(l => l.status === 'PENDENTE').length,
+            receitas: resumoCards.receitas,
+            despesas: resumoCards.despesas,
+            pendentes: resumoCards.pendentes,
+            chartData: Array.from(chartMap.values())
         };
     }
 
@@ -239,4 +345,5 @@ export class FinanceiroService {
             { $set: { status: 'CANCELADO' } }
         );
     }
+
 }

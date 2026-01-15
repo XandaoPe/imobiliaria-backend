@@ -7,7 +7,6 @@ import {
 import type { Response } from 'express';
 import { FinanceiroService } from './financeiro.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { PerfisEnum } from 'src/usuario/schemas/usuario.schema';
@@ -42,17 +41,20 @@ export class FinanceiroController {
         return this.financeiroService.findAllByEmpresa(empresaId, filtros);
     }
 
+    // AQUI ESTÁ O AJUSTE PRINCIPAL
     @Get('resumo')
     @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE)
-    @ApiOperation({ summary: 'Retorna o resumo mensal (Receitas, Despesas, Pendentes).' })
+    @ApiOperation({ summary: 'Retorna o resumo mensal e dados para o gráfico.' })
     async getResumo(@Req() req) {
         const empresaId = req.user.empresa;
-        return this.financeiroService.getResumoMensal(empresaId);
+        // O Service agora retorna { receitas, despesas, pendentes, chartData }
+        const resumo = await this.financeiroService.getResumoMensal(empresaId);
+        return resumo;
     }
 
-    @Get('validar/:id') // Use exatamente 'validar/:id'
+    @Get('validar/:id')
     @Public()
-    async validarRecibo(@Param('id') id: string) { // Volte para @Param
+    async validarRecibo(@Param('id') id: string) {
         const dados = await this.financeiroService.buscarDadosParaReciboSimples(id);
 
         if (!dados || !dados.lancamento || !dados.empresa) {
