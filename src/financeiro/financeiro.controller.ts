@@ -38,32 +38,27 @@ export class FinanceiroController {
     @ApiOperation({ summary: 'Lista todos os lançamentos financeiros da empresa.' })
     async findAll(@Req() req, @Query() filtros: FinanceiroFiltrosDto) {
         const empresaId = req.user.empresa;
+        // Aqui o objeto 'filtros' já contém o campo 'search' vindo da query string
         return this.financeiroService.findAllByEmpresa(empresaId, filtros);
     }
 
-    // AQUI ESTÁ O AJUSTE PRINCIPAL
     @Get('resumo')
     @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE)
-    @ApiOperation({ summary: 'Retorna o resumo mensal e dados para o gráfico.' })
-    async getResumo(@Req() req) {
+    @ApiOperation({ summary: 'Retorna o resumo filtrado e dados para o gráfico.' })
+    async getResumo(@Req() req, @Query() filtros: FinanceiroFiltrosDto) {
         const empresaId = req.user.empresa;
-        // O Service agora retorna { receitas, despesas, pendentes, chartData }
-        const resumo = await this.financeiroService.getResumoMensal(empresaId);
-        return resumo;
+        return await this.financeiroService.getResumoMensal(empresaId, filtros);
     }
 
     @Get('validar/:id')
     @Public()
     async validarRecibo(@Param('id') id: string) {
         const dados = await this.financeiroService.buscarDadosParaReciboSimples(id);
-
         if (!dados || !dados.lancamento || !dados.empresa) {
             throw new NotFoundException('Recibo inválido ou não encontrado.');
         }
-
         const { lancamento, empresa } = dados;
         const clientePopulado = lancamento.cliente as any;
-
         return {
             valido: true,
             cliente: clientePopulado?.nome || 'Não identificado',
@@ -76,25 +71,20 @@ export class FinanceiroController {
 
     @Get(':id/recibo')
     @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE, PerfisEnum.CORRETOR)
-    @ApiOperation({ summary: 'Gera o PDF do recibo para um lançamento.' })
     async baixarRecibo(@Param('id') id: string, @Req() req, @Res() res: Response) {
         const empresaId = req.user.empresa;
-
         const { lancamento, empresa } = await this.financeiroService.buscarDadosParaRecibo(id, empresaId);
         const buffer = await this.financeiroPdfService.gerarRecibo(lancamento, empresa);
-
         res.set({
             'Content-Type': 'application/pdf',
             'Content-Disposition': `attachment; filename=recibo-${id}.pdf`,
             'Content-Length': buffer.length,
         });
-
         res.end(buffer);
     }
 
     @Patch(':id/pagar')
     @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE)
-    @ApiOperation({ summary: 'Registra o pagamento (baixa) de um lançamento.' })
     @HttpCode(HttpStatus.OK)
     async registrarPagamento(@Param('id') id: string, @Req() req) {
         const empresaId = req.user.empresa;

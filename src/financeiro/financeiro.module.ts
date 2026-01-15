@@ -5,11 +5,13 @@ import { FinanceiroService } from './financeiro.service';
 import { Financeiro, FinanceiroSchema } from './schemas/financeiro.schema';
 import { FinanceiroPdfService } from './financeiro-pdf.service';
 import { Empresa, EmpresaSchema } from 'src/empresa/schemas/empresa.schema'; // ⭐️ Importar Schema da Empresa
+import { Cliente, ClienteSchema } from 'src/cliente/schemas/cliente.schema';
 
 @Module({
     imports: [
         MongooseModule.forFeature([
             { name: Financeiro.name, schema: FinanceiroSchema },
+            { name: Cliente.name, schema: ClienteSchema },
             { name: Empresa.name, schema: EmpresaSchema }, // ⭐️ Adicionar aqui para o Service funcionar
         ]),
     ],
