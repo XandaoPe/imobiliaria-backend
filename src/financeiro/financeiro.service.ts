@@ -40,7 +40,12 @@ export class FinanceiroService {
         if (dataInicio || dataFim) {
             query.dataVencimento = {};
             if (dataInicio) {
-                query.dataVencimento.$gte = new Date(dataInicio);
+                const deData = new Date(dataInicio);
+                // Adiciona 1 dia para garantir que o dia selecionado seja incluído
+                // e usa $lt (menor que) o início do dia seguinte
+                deData.setDate(deData.getDate() + 1);
+                query.dataVencimento.$gte = deData;
+                // query.dataVencimento.$gte = new Date(dataInicio);
             }
             if (dataFim) {
                 const ateData = new Date(dataFim);
@@ -353,4 +358,5 @@ export class FinanceiroService {
             { $set: { status: StatusFinanceiro.CANCELADO } }
         );
     }
+
 }

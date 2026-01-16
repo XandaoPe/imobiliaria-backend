@@ -14,6 +14,8 @@ export enum CategoriaLancamento {
     TAXA_ADMINISTRACAO = 'TAXA_ADMINISTRACAO',
     REPASSE = 'REPASSE',
     MANUTENCAO = 'MANUTENCAO',
+    OPERACIONAL = 'OPERACIONAL',
+    OUTROS = 'OUTROS',
 }
 
 export enum StatusFinanceiro {
