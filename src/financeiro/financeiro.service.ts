@@ -77,8 +77,8 @@ export class FinanceiroService {
                 .sort({ dataVencimento: 1 })
                 .skip(skip)
                 .limit(limit)
-                .populate('cliente', 'nome')
-                .populate('imovel', 'codigo')
+                .populate('imovel', 'titulo endereco cidade') // 👈 ADICIONE ISSO: Traz os dados do imóvel
+                .populate('cliente', 'nome telefone')
                 .lean(),
             this.financeiroModel.countDocuments(query),
         ]);
