@@ -287,7 +287,7 @@ export class FinanceiroService {
                     dataVencimento: new Date(dataVencimento),
                     status: StatusFinanceiro.PENDENTE,
                     parcelaNumero: i,
-                    descricao: `[${codNeg}] Parcela ${i}/${qtdParcelas} - ${negociacao.tipo}`,
+                    descricao: `Parcela ${i}/${qtdParcelas} - ${negociacao.tipo}`,
                 });
 
                 if (proprietarioId) {
@@ -305,7 +305,7 @@ export class FinanceiroService {
                         dataVencimento: new Date(dataVencimento),
                         status: StatusFinanceiro.PENDENTE,
                         parcelaNumero: i,
-                        descricao: `[${codNeg}] Repasse Parcela ${i}/${qtdParcelas}`,
+                        descricao: `Repasse Parcela ${i}/${qtdParcelas}`,
                     });
                 }
             }
