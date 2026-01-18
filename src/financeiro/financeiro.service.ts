@@ -256,12 +256,17 @@ export class FinanceiroService {
             const diaEscolhido = Number(diaVencimento) || new Date().getDate();
             const codNeg = negociacao.codigo || 'S/COD';
 
-            let taxaAdmDecimal = 0.10; // Padrão 10%
+            const chaveConfig = negociacao.tipo === 'VENDA' ? 'TAXA_VENDA' : 'TAXA_ADM_ALUGUEL';
+
+            let taxaAdmDecimal = 0.10;
             try {
-                const configTaxa = await this.configService.findByChave('TAXA_ADM_ALUGUEL', empresaIdStr);
-                taxaAdmDecimal = configTaxa.valor / 100; // Converte ex: 8 para 0.08
+                // Busca a taxa correta (Venda ou Aluguel)
+                const configTaxa = await this.configService.findByChave(chaveConfig, empresaIdStr);
+                if (configTaxa && configTaxa.valor) {
+                    taxaAdmDecimal = configTaxa.valor / 100;
+                }
             } catch (error) {
-                console.log('Taxa personalizada não definida, usando padrão 10%');
+                console.log(`Taxa ${chaveConfig} não encontrada, usando padrão 10%`);
             }
 
             if (Number(valorEntrada) > 0) {

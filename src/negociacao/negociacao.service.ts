@@ -125,6 +125,9 @@ export class NegociacaoService {
             }
 
             if (dadosFinanceiros) {
+                if (dadosFinanceiros.tipoNegocio) {
+                    negociacao.tipo = dadosFinanceiros.tipoNegocio;
+                }
                 await this.financeiroService.gerarFluxoFinanceiroFechamento(
                     negociacao,
                     imovel,
