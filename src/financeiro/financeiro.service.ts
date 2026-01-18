@@ -6,13 +6,15 @@ import { FinanceiroFiltrosDto } from './dto/financeiro-filtros.dto';
 import { Empresa, EmpresaDocument } from 'src/empresa/schemas/empresa.schema';
 import { CreateFinanceiroDto } from './dto/create-financeiro.dto';
 import { Cliente } from 'src/cliente/schemas/cliente.schema';
+import { ConfiguracaoService } from 'src/configuracao/configuracao.service';
 
 @Injectable()
 export class FinanceiroService {
     constructor(
         @InjectModel(Financeiro.name) private financeiroModel: Model<FinanceiroDocument>,
         @InjectModel(Empresa.name) private empresaModel: Model<EmpresaDocument>,
-        @InjectModel(Cliente.name) private clienteModel: Model<any>
+        @InjectModel(Cliente.name) private clienteModel: Model<any>,
+        private readonly configService: ConfiguracaoService,
     ) { }
 
     async create(createDto: CreateFinanceiroDto, empresaId: string) {
@@ -77,8 +79,17 @@ export class FinanceiroService {
                 .sort({ dataVencimento: 1 })
                 .skip(skip)
                 .limit(limit)
-                .populate('imovel', 'titulo endereco cidade') // 👈 ADICIONE ISSO: Traz os dados do imóvel
                 .populate('cliente', 'nome telefone')
+                // ALTERAÇÃO AQUI: Deep Populate para pegar o proprietário do imóvel
+                .populate({
+                    path: 'imovel',
+                    select: 'titulo endereco cidade proprietario codigo',
+                    populate: {
+                        path: 'proprietario',
+                        model: 'Cliente', // Certifique-on de que este é o nome do model de clientes
+                        select: 'nome email telefone'
+                    }
+                })
                 .lean(),
             this.financeiroModel.countDocuments(query),
         ]);
@@ -235,6 +246,7 @@ export class FinanceiroService {
             const lancamentos: any[] = [];
             const { valorEntrada, qtdParcelas, valorParcela, diaVencimento } = financeiroData;
 
+            const empresaIdStr = negociacao.empresa.toString();
             const empresaId = new Types.ObjectId(negociacao.empresa);
             const negociacaoId = new Types.ObjectId(negociacao._id);
             const imovelId = new Types.ObjectId(imovel._id);
@@ -243,6 +255,14 @@ export class FinanceiroService {
 
             const diaEscolhido = Number(diaVencimento) || new Date().getDate();
             const codNeg = negociacao.codigo || 'S/COD';
+
+            let taxaAdmDecimal = 0.10; // Padrão 10%
+            try {
+                const configTaxa = await this.configService.findByChave('TAXA_ADM_ALUGUEL', empresaIdStr);
+                taxaAdmDecimal = configTaxa.valor / 100; // Converte ex: 8 para 0.08
+            } catch (error) {
+                console.log('Taxa personalizada não definida, usando padrão 10%');
+            }
 
             if (Number(valorEntrada) > 0) {
                 lancamentos.push({
@@ -291,9 +311,7 @@ export class FinanceiroService {
                 });
 
                 if (proprietarioId) {
-                    const taxaAdm = 0.10;
-                    const valorRepasse = Number(valorParcela) * (1 - taxaAdm);
-                    lancamentos.push({
+                    const valorRepasse = Number(valorParcela) * (1 - taxaAdmDecimal); lancamentos.push({
                         empresa: empresaId,
                         negociacao: negociacaoId,
                         negociacaoCodigo: codNeg,
@@ -305,7 +323,7 @@ export class FinanceiroService {
                         dataVencimento: new Date(dataVencimento),
                         status: StatusFinanceiro.PENDENTE,
                         parcelaNumero: i,
-                        descricao: `Repasse Parcela ${i}/${qtdParcelas}`,
+                        descricao: `Repasse Parcela ${i}/${qtdParcelas} (${(taxaAdmDecimal * 100).toFixed(1)}% taxa)`,
                     });
                 }
             }

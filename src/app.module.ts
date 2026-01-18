@@ -23,6 +23,7 @@ import { NotificacaoModule } from './notificacao/notificacao.module';
 import { LeadsModule } from './leads/leads.module';
 import { NegociacaoModule } from './negociacao/negociacao.module';
 import { FinanceiroModule } from './financeiro/financeiro.module';
+import { ConfiguracaoModule } from './configuracao/configuracao.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { FinanceiroModule } from './financeiro/financeiro.module';
     LeadsModule,
     NegociacaoModule,
     FinanceiroModule,
+    ConfiguracaoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

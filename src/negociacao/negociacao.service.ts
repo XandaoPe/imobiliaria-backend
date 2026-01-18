@@ -34,7 +34,16 @@ export class NegociacaoService {
         const negociacao = await this.negociacaoModel
             .findOne({ _id: id, empresa: new Types.ObjectId(empresaId) })
             .populate('cliente', 'nome telefone email endereco cidade')
-            .populate('imovel', 'titulo endereco cidade proprietario codigo')
+            // ALTERAÇÃO: População aninhada (Deep Populate)
+            .populate({
+                path: 'imovel',
+                select: 'titulo endereco cidade proprietario codigo',
+                populate: {
+                    path: 'proprietario',
+                    model: 'Cliente', // Nome do seu model de clientes/proprietários
+                    select: 'nome email telefone'
+                }
+            })
             .exec();
 
         if (!negociacao) {
@@ -52,8 +61,16 @@ export class NegociacaoService {
 
         let negociacoes = await this.negociacaoModel
             .find(query)
-            .populate('imovel', 'titulo endereco cidade')
             .populate('cliente', 'nome email telefone endereco cidade')
+            // ALTERAÇÃO: Deep Populate aqui também
+            .populate({
+                path: 'imovel',
+                select: 'titulo endereco cidade proprietario',
+                populate: {
+                    path: 'proprietario',
+                    select: 'nome'
+                }
+            })
             .sort({ updatedAt: -1 })
             .exec();
 
