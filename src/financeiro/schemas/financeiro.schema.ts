@@ -61,11 +61,29 @@ export class Financeiro {
     @Prop()
     valorPago?: number;
 
-    @Prop({ required: true })
-    dataVencimento: Date;
+    @Prop({
+        type: String,
+        required: true,
+        validate: {
+            validator: function (v: string) {
+                return /^\d{4}-\d{2}-\d{2}$/.test(v);
+            },
+            message: 'dataVencimento deve estar no formato YYYY-MM-DD'
+        }
+    })
+    dataVencimento: string;
 
-    @Prop()
-    dataPagamento?: Date;
+    @Prop({
+        type: String,
+        validate: {
+            validator: function (v: string) {
+                if (!v) return true;
+                return /^\d{4}-\d{2}-\d{2}$/.test(v);
+            },
+            message: 'dataPagamento deve estar no formato YYYY-MM-DD'
+        }
+    })
+    dataPagamento?: string;
 
     @Prop({
         required: true,

@@ -17,6 +17,20 @@ export class FinanceiroService {
         private readonly configService: ConfiguracaoService,
     ) { }
 
+    private criarFiltroDataString(dataInicio?: string, dataFim?: string): any {
+        const filtro: any = {};
+
+        if (dataInicio) {
+            filtro.$gte = dataInicio; // "2026-01-19" >= "2026-01-19"
+        }
+
+        if (dataFim) {
+            filtro.$lte = dataFim; // "2026-02-24" <= "2026-02-24"
+        }
+
+        return filtro;
+    }
+
     async create(createDto: CreateFinanceiroDto, empresaId: string) {
         const novoLancamento = new this.financeiroModel({
             ...createDto,
@@ -38,24 +52,8 @@ export class FinanceiroService {
             query.status = status;
         }
 
-        // --- CORREÇÃO DEFINITIVA DA DATA FIM ---
         if (dataInicio || dataFim) {
-            query.dataVencimento = {};
-            if (dataInicio) {
-                const deData = new Date(dataInicio);
-                // Adiciona 1 dia para garantir que o dia selecionado seja incluído
-                // e usa $lt (menor que) o início do dia seguinte
-                // deData.setDate(deData.getDate() + 1);
-                // query.dataVencimento.$gte = deData;
-                query.dataVencimento.$gte = new Date(dataInicio);
-            }
-            if (dataFim) {
-                const ateData = new Date(dataFim);
-                // Adiciona 1 dia para garantir que o dia selecionado seja incluído
-                // e usa $lt (menor que) o início do dia seguinte
-                ateData.setDate(ateData.getDate() + 1);
-                query.dataVencimento.$lt = ateData;
-            }
+            query.dataVencimento = this.criarFiltroDataString(dataInicio, dataFim);
         }
 
         if (search) {
@@ -111,17 +109,8 @@ export class FinanceiroService {
             status: { $ne: StatusFinanceiro.CANCELADO }
         };
 
-        // --- CORREÇÃO DEFINITIVA DA DATA FIM NO RESUMO ---
         if (dataInicio || dataFim) {
-            matchFiltro.dataVencimento = {};
-            if (dataInicio) {
-                matchFiltro.dataVencimento.$gte = new Date(dataInicio);
-            }
-            if (dataFim) {
-                const ateData = new Date(dataFim);
-                ateData.setDate(ateData.getDate() + 1);
-                matchFiltro.dataVencimento.$lt = ateData;
-            }
+            matchFiltro.dataVencimento = this.criarFiltroDataString(dataInicio, dataFim);
         }
 
         if (search) {
@@ -193,8 +182,8 @@ export class FinanceiroService {
             {
                 $group: {
                     _id: {
-                        mes: { $month: "$dataVencimento" },
-                        ano: { $year: "$dataVencimento" },
+                        mes: { $month: { $dateFromString: { dateString: "$dataVencimento" } } },
+                        ano: { $year: { $dateFromString: { dateString: "$dataVencimento" } } },
                         tipo: "$tipo"
                     },
                     total: { $sum: "$valor" },
@@ -203,7 +192,7 @@ export class FinanceiroService {
                     }
                 }
             },
-            { $sort: { "_id.ano": 1, "_id.mes": 1 } }
+            { $sort: { "_id.ano": 1, "_id.mes": 1, dataVencimento: 1 } }
         ]);
 
         const mesesNomes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -260,7 +249,6 @@ export class FinanceiroService {
 
             let taxaAdmDecimal = 0.10;
             try {
-                // Busca a taxa correta (Venda ou Aluguel)
                 const configTaxa = await this.configService.findByChave(chaveConfig, empresaIdStr);
                 if (configTaxa && configTaxa.valor) {
                     taxaAdmDecimal = configTaxa.valor / 100;
@@ -268,6 +256,9 @@ export class FinanceiroService {
             } catch (error) {
                 console.log(`Taxa ${chaveConfig} não encontrada, usando padrão 10%`);
             }
+
+            // Data atual como string YYYY-MM-DD
+            const dataAtualStr = new Date().toISOString().split('T')[0];
 
             if (Number(valorEntrada) > 0) {
                 lancamentos.push({
@@ -280,8 +271,8 @@ export class FinanceiroService {
                     categoria: negociacao.tipo === 'VENDA' ? CategoriaLancamento.VENDA : CategoriaLancamento.ALUGUEL,
                     valor: Number(valorEntrada),
                     valorPago: Number(valorEntrada),
-                    dataVencimento: new Date(),
-                    dataPagamento: new Date(),
+                    dataVencimento: dataAtualStr,
+                    dataPagamento: dataAtualStr,
                     status: StatusFinanceiro.PAGO,
                     descricao: `[${codNeg}] Entrada - ${negociacao.tipo} - Imóvel ${imovel.codigo || 'S/R'}`,
                     observacoes: 'Gerado automaticamente no fechamento.'
@@ -289,16 +280,24 @@ export class FinanceiroService {
             }
 
             const hoje = new Date();
-            hoje.setHours(12, 0, 0, 0);
+            const anoAtual = hoje.getFullYear();
+            const mesAtual = hoje.getMonth();
 
             for (let i = 1; i <= qtdParcelas; i++) {
-                const anoAlvo = hoje.getFullYear();
-                const mesAlvo = hoje.getMonth() + i;
-                let dataVencimento = new Date(anoAlvo, mesAlvo, diaEscolhido, 12, 0, 0);
+                const mesAlvo = mesAtual + i;
+                const anoAlvo = anoAtual + Math.floor(mesAlvo / 12);
+                const mesAjustado = mesAlvo % 12;
 
-                if (dataVencimento.getMonth() !== (mesAlvo % 12)) {
-                    dataVencimento = new Date(anoAlvo, mesAlvo + 1, 0, 12, 0, 0);
+                // Criar data no fuso local
+                const dataVencimentoDate = new Date(anoAlvo, mesAjustado, diaEscolhido);
+
+                // Ajustar se o dia não existe (ex: 31 de fevereiro)
+                if (dataVencimentoDate.getMonth() !== mesAjustado) {
+                    dataVencimentoDate.setDate(0); // Último dia do mês anterior
                 }
+
+                // Converter para string YYYY-MM-DD
+                const dataVencimentoStr = dataVencimentoDate.toISOString().split('T')[0];
 
                 lancamentos.push({
                     empresa: empresaId,
@@ -309,14 +308,15 @@ export class FinanceiroService {
                     tipo: TipoLancamento.RECEITA,
                     categoria: negociacao.tipo === 'VENDA' ? CategoriaLancamento.VENDA : CategoriaLancamento.ALUGUEL,
                     valor: Number(valorParcela),
-                    dataVencimento: new Date(dataVencimento),
+                    dataVencimento: dataVencimentoStr,
                     status: StatusFinanceiro.PENDENTE,
                     parcelaNumero: i,
                     descricao: `Parcela ${i}/${qtdParcelas} - ${negociacao.tipo}`,
                 });
 
                 if (proprietarioId) {
-                    const valorRepasse = Number(valorParcela) * (1 - taxaAdmDecimal); lancamentos.push({
+                    const valorRepasse = Number(valorParcela) * (1 - taxaAdmDecimal);
+                    lancamentos.push({
                         empresa: empresaId,
                         negociacao: negociacaoId,
                         negociacaoCodigo: codNeg,
@@ -325,7 +325,7 @@ export class FinanceiroService {
                         tipo: TipoLancamento.DESPESA,
                         categoria: CategoriaLancamento.REPASSE,
                         valor: Number(valorRepasse.toFixed(2)),
-                        dataVencimento: new Date(dataVencimento),
+                        dataVencimento: dataVencimentoStr,
                         status: StatusFinanceiro.PENDENTE,
                         parcelaNumero: i,
                         descricao: `Repasse Parcela ${i}/${qtdParcelas} (${(taxaAdmDecimal * 100).toFixed(1)}% taxa)`,
@@ -333,17 +333,26 @@ export class FinanceiroService {
                 }
             }
 
+            console.log('=== DATAS CRIADAS ===');
+            lancamentos.forEach((l, i) => {
+                console.log(`Lançamento ${i + 1}:`, {
+                    dataVencimento: l.dataVencimento, // Já é string
+                    descricao: l.descricao
+                });
+            });
+
             if (lancamentos.length === 0) return [];
             return await this.financeiroModel.insertMany(lancamentos);
         } catch (error) {
+            console.error('Erro ao gerar fluxo financeiro:', error);
             throw new BadRequestException('Não foi possível gerar os lançamentos financeiros.');
         }
     }
-
+    
     async registrarPagamento(id: string, empresaId: string, dadosBaixa?: any) {
         const updateData: any = {
             status: StatusFinanceiro.PAGO,
-            dataPagamento: dadosBaixa?.dataPagamento || new Date(),
+            dataPagamento: dadosBaixa?.dataPagamento || new Date().toISOString().split('T')[0],
             valorPago: dadosBaixa?.valorPago,
             observacoes: dadosBaixa?.observacoes
         };
