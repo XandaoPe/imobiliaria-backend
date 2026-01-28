@@ -88,6 +88,9 @@ export class Negociacao {
     @Prop({ default: "" })
     observacoes_gerais: string;
 
+    @Prop({ type: String })
+    dataAgendamento?: string;
+
     @Prop({ type: DadosFinanceiros })
     dadosFinanceiros?: DadosFinanceiros;
 

@@ -1,5 +1,5 @@
 // src/agendamento/agendamento.controller.ts
-import { Controller, Post, Body, UseGuards, Get, Req, HttpStatus, HttpCode, Put, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Req, HttpStatus, HttpCode, Put, Patch, Param, Delete, Query, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
@@ -51,9 +51,17 @@ export class AgendamentoController {
 
     @Get('horarios-ocupados')
     @Roles(...ROLES_ACESS)
-    async getOcupados(@Query('data') data: string, @Req() req: RequestWithUser) {
-        // Busca os horários que o usuário logado está ocupado
-        return this.agendamentoService.findHorariosOcupadosDoUsuario(req.user.userId!, data);
+    async getOcupados(
+        @Query('data') data: string,
+        @Query('imovelId') imovelId: string,
+        @Req() req: RequestWithUser
+    ) {
+        if (!imovelId) {
+            throw new BadRequestException('ID do imóvel é obrigatório para consultar horários ocupados');
+        }
+
+        // Agora busca horários ocupados para o imóvel específico
+        return this.agendamentoService.findHorariosOcupadosParaImovel(imovelId, data);
     }
 
     @Get(':id')

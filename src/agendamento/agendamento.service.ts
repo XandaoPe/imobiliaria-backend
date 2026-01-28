@@ -141,16 +141,12 @@ export class AgendamentoService {
         const agora = new Date();
         const empresaId = new Types.ObjectId(user.empresa);
 
-        // Define o filtro base por empresa
         const query: any = { empresa: empresaId };
 
-        // Se for CORRETOR, filtra para ver apenas os dele. 
-        // Se for ADM ou GERENTE, a query permanece apenas com empresaId (vê tudo).
         if (user.perfil === 'CORRETOR') {
             query.usuarioCorretor = new Types.ObjectId(user.userId);
         }
 
-        // Auto-conclusão lógica (agora respeitando o filtro de visibilidade)
         await this.agendamentoModel.updateMany(
             {
                 ...query,
@@ -160,6 +156,7 @@ export class AgendamentoService {
             { $set: { status: 'CONCLUIDO' } }
         );
 
+        // Retorna os agendamentos sem modificar o tipo de dataHora
         return this.agendamentoModel.find(query)
             .populate('imovel cliente usuarioCorretor')
             .sort({ dataHora: 1 })
@@ -178,7 +175,7 @@ export class AgendamentoService {
         }).exec();
     }
 
-    async findHorariosOcupadosDoUsuario(usuarioId: string, data: string): Promise<string[]> {
+    async findHorariosOcupadosParaImovel(imovelId: string, data: string): Promise<string[]> {
         const inicioDia = new Date(data);
         inicioDia.setUTCHours(0, 0, 0, 0);
 
@@ -186,14 +183,21 @@ export class AgendamentoService {
         fimDia.setUTCHours(23, 59, 59, 999);
 
         const agendamentos = await this.agendamentoModel.find({
-            usuarioCorretor: new Types.ObjectId(usuarioId),
+            imovel: new Types.ObjectId(imovelId),
             dataHora: { $gte: inicioDia, $lte: fimDia },
-            status: 'PENDENTE' // ⭐️ LIBERA O HORÁRIO NO SELECT SE FOR CANCELADO/CONCLUÍDO
+            status: { $in: ['PENDENTE', 'CONFIRMADO'] }
         }).select('dataHora').exec();
 
         return agendamentos.map(a => {
             const d = new Date(a.dataHora);
-            return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+            // Converter para horário de São Paulo para exibição
+            const horaSP = d.toLocaleString('pt-BR', {
+                timeZone: 'America/Sao_Paulo',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+            return horaSP;
         });
     }
 

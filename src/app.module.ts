@@ -2,10 +2,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-// ⭐️ IMPORT NECESSÁRIO 1: ServeStaticModule
 import { ServeStaticModule } from '@nestjs/serve-static';
-// ⭐️ IMPORT NECESSÁRIO 2: join do path
 import { join } from 'path';
+// ⭐️ IMPORT DO SCHEDULE
+import { ScheduleModule } from '@nestjs/schedule';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -24,6 +24,7 @@ import { LeadsModule } from './leads/leads.module';
 import { NegociacaoModule } from './negociacao/negociacao.module';
 import { FinanceiroModule } from './financeiro/financeiro.module';
 import { ConfiguracaoModule } from './configuracao/configuracao.module';
+import { TasksModule } from './tasks/tasks.module';
 
 @Module({
   imports: [
@@ -41,8 +42,11 @@ import { ConfiguracaoModule } from './configuracao/configuracao.module';
       inject: [ConfigService],
     }),
 
+    TasksModule,
+    
+    ScheduleModule.forRoot(),
+
     ServeStaticModule.forRoot({
-      // Isso tenta achar a pasta uploads na raiz do projeto, independente de onde o arquivo rodar
       rootPath: join(process.cwd(), 'uploads'),
       serveRoot: '/uploads',
     }),

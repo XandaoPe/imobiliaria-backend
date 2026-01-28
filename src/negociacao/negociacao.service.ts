@@ -157,12 +157,24 @@ export class NegociacaoService {
                 throw new BadRequestException('Para mudar para Visita Agendada, é necessário informar a data e hora.');
             }
 
+            // CORREÇÃO: Extrair apenas a data (YYYY-MM-DD) do timestamp
+            const dataAgendamentoDate = new Date(dataAgendamento);
+            if (isNaN(dataAgendamentoDate.getTime())) {
+                throw new BadRequestException('Data de agendamento inválida.');
+            }
+
+            // Extrair apenas a parte da data (sem hora, fuso horário)
+            const dataVisitaApenas = dataAgendamentoDate.toISOString().split('T')[0];
+
             await this.agendamentoService.create({
                 imovelId: negociacao.imovel._id.toString(),
                 clienteId: negociacao.cliente._id.toString(),
-                dataHora: dataAgendamento,
+                dataHora: dataAgendamento, // Mantém timestamp completo para agendamento
                 status: StatusAgendamento.PENDENTE
             }, usuarioPayload);
+
+            // Grava apenas a data na negociação
+            negociacao.dataAgendamento = dataVisitaApenas;
         }
 
         if (novoStatus === StatusNegociacao.FECHADO && negociacao.status !== StatusNegociacao.FECHADO) {
@@ -200,9 +212,14 @@ export class NegociacaoService {
             negociacao.data_fechamento = new Date();
         }
 
+        // Adiciona a informação da data ao histórico se for VISITA
+        const descricaoHistorico = (novoStatus === StatusNegociacao.VISITA && dataAgendamento)
+            ? `Status alterado para: ${novoStatus} (Data: ${dataAgendamento})`
+            : `Status alterado para: ${novoStatus}${dadosFinanceiros ? ' (Parcelas Financeiras Geradas)' : ''}`;
+
         negociacao.status = novoStatus;
         negociacao.historico.push({
-            descricao: `Status alterado para: ${novoStatus}${dadosFinanceiros ? ' (Parcelas Financeiras Geradas)' : ''}`,
+            descricao: descricaoHistorico,
             usuario_nome: usuarioPayload.nome || 'Sistema',
             data: new Date()
         });
