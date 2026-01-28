@@ -7,16 +7,63 @@ import { ImovelService } from 'src/imovel/imovel.service';
 import { AgendamentoService } from 'src/agendamento/agendamento.service';
 import { StatusAgendamento } from 'src/agendamento/schemas/agendamento.schema';
 import { FinanceiroService } from 'src/financeiro/financeiro.service';
+import { Usuario, UsuarioDocument } from 'src/usuario/schemas/usuario.schema';
+import { NotificacaoService } from 'src/notificacao/notificacao.service';
+
+// Interfaces auxiliares
+interface ClientePopulado {
+    _id: Types.ObjectId;
+    nome: string;
+    telefone: string;
+    email: string;
+    endereco?: string;
+    cidade?: string;
+}
+
+interface ImovelPopulado {
+    _id: Types.ObjectId;
+    titulo: string;
+    endereco: string;
+    cidade: string;
+    proprietario?: Types.ObjectId;
+    codigo?: string;
+}
 
 @Injectable()
 export class NegociacaoService {
     constructor(
         @InjectModel(Negociacao.name) private negociacaoModel: Model<NegociacaoDocument>,
         @InjectModel('Counter') private counterModel: Model<any>,
+        @InjectModel(Usuario.name) private usuarioModel: Model<UsuarioDocument>,
         private imovelService: ImovelService,
         private agendamentoService: AgendamentoService,
         private financeiroService: FinanceiroService,
+        private notificacaoService: NotificacaoService,
     ) { }
+
+    private extrairTokens(usuarios: any[]): string[] {
+        const tokens: string[] = [];
+
+        usuarios.forEach(u => {
+            let token = u.pushToken;
+
+            // Se for array, pega o último item
+            if (Array.isArray(token)) {
+                if (token.length > 0) {
+                    token = token[token.length - 1];
+                } else {
+                    token = null;
+                }
+            }
+
+            // Se for string válida, adiciona
+            if (token && typeof token === 'string' && token.length > 10) {
+                tokens.push(token);
+            }
+        });
+
+        return tokens;
+    }
 
     private async generateNextCodigo(): Promise<string> {
         const counter = await this.counterModel.findOneAndUpdate(
@@ -34,13 +81,12 @@ export class NegociacaoService {
         const negociacao = await this.negociacaoModel
             .findOne({ _id: id, empresa: new Types.ObjectId(empresaId) })
             .populate('cliente', 'nome telefone email endereco cidade')
-            // ALTERAÇÃO: População aninhada (Deep Populate)
             .populate({
                 path: 'imovel',
                 select: 'titulo endereco cidade proprietario codigo',
                 populate: {
                     path: 'proprietario',
-                    model: 'Cliente', // Nome do seu model de clientes/proprietários
+                    model: 'Cliente',
                     select: 'nome email telefone'
                 }
             })
@@ -62,7 +108,6 @@ export class NegociacaoService {
         let negociacoes = await this.negociacaoModel
             .find(query)
             .populate('cliente', 'nome email telefone endereco cidade')
-            // ALTERAÇÃO: Deep Populate aqui também
             .populate({
                 path: 'imovel',
                 select: 'titulo endereco cidade proprietario',
@@ -77,9 +122,12 @@ export class NegociacaoService {
         if (search) {
             const searchLower = search.toLowerCase();
             negociacoes = negociacoes.filter(item => {
-                const clienteNome = (item.cliente as any)?.nome?.toLowerCase() || '';
-                const imovelTitulo = (item.imovel as any)?.titulo?.toLowerCase() || '';
-                const imovelEndereco = (item.imovel as any)?.endereco?.toLowerCase() || '';
+                const cliente = item.cliente as unknown as ClientePopulado;
+                const imovel = item.imovel as unknown as ImovelPopulado;
+
+                const clienteNome = cliente?.nome?.toLowerCase() || '';
+                const imovelTitulo = imovel?.titulo?.toLowerCase() || '';
+                const imovelEndereco = imovel?.endereco?.toLowerCase() || '';
 
                 return clienteNome.includes(searchLower) ||
                     imovelTitulo.includes(searchLower) ||
@@ -243,11 +291,10 @@ export class NegociacaoService {
 
         // 2. Geração da NOVA negociação com NOVO CÓDIGO
         if (gerarNovaProspeccao) {
-            // Chamamos o gerador para obter o próximo código da sequência (ex: NEG-2026-0005)
             const novoCodigo = await this.generateNextCodigo();
 
             const novaNegociacao = new this.negociacaoModel({
-                codigo: novoCodigo, // AQUI GARANTIMOS O NOVO CÓDIGO
+                codigo: novoCodigo,
                 imovel: antiga.imovel._id,
                 cliente: antiga.cliente._id,
                 empresa: antiga.empresa,
@@ -269,5 +316,159 @@ export class NegociacaoService {
         }
 
         return antiga;
+    }
+
+    async notificarVisitaAgendada(
+        negociacaoId: string,
+        dados: {
+            dataVisita: string;
+            horaVisita: string;
+            imovelTitulo: string;
+            clienteNome: string;
+            corretorNome: string;
+        },
+        empresaId: string,
+        usuario: any
+    ) {
+        try {
+            console.log(`=== INICIANDO NOTIFICAÇÃO DE VISITA ===`);
+            console.log(`Negociação ID: ${negociacaoId}`);
+            console.log(`Empresa ID: ${empresaId}`);
+
+            // CORREÇÃO: Obter ID do usuário corretamente
+            const usuarioId = usuario._id || usuario.userId || usuario.sub;
+            console.log(`Usuário que agendou: ${usuario.nome} (ID: ${usuarioId})`);
+
+            if (!usuarioId) {
+                console.error('❌ ERRO: ID do usuário não encontrado no payload');
+                console.log('Payload do usuário:', usuario);
+                return {
+                    success: false,
+                    message: 'ID do usuário não encontrado'
+                };
+            }
+
+            // 1. Buscar a negociação
+            const negociacao = await this.findOne(negociacaoId, empresaId);
+
+            // Cast para tipos populados
+            const cliente = negociacao.cliente as unknown as ClientePopulado;
+            const imovel = negociacao.imovel as unknown as ImovelPopulado;
+
+            // 2. Buscar TODOS os corretores/gerentes da empresa para notificar
+            // EXCETO o usuário que está criando a visita (para evitar auto-notificação)
+            const usuarios = await this.usuarioModel.find({
+                empresa: new Types.ObjectId(empresaId),
+                _id: { $ne: new Types.ObjectId(usuarioId) } // Usar usuarioId corrigido
+            });
+
+        // ... resto do método continua igual ...
+            console.log(`Total de usuários encontrados: ${usuarios.length}`);
+
+            // Extrair e filtrar tokens válidos
+            const tokens = this.extrairTokens(usuarios);
+
+            usuarios.forEach((u: any, index) => {
+                const pushToken = u.pushToken;
+
+                console.log(`Usuário [${index + 1}]: ${u.nome}`);
+                console.log(`  Tipo do pushToken: ${Array.isArray(pushToken) ? 'ARRAY' : typeof pushToken}`);
+
+                if (pushToken) {
+                    if (Array.isArray(pushToken)) {
+                        // Se é um array, pega o ÚLTIMO token (mais recente)
+                        const ultimoToken = pushToken[pushToken.length - 1];
+                        console.log(`  É array com ${pushToken.length} tokens`);
+                        console.log(`  Último token: ${ultimoToken ? ultimoToken.substring(0, 30) + '...' : 'vazio'}`);
+
+                        if (ultimoToken && typeof ultimoToken === 'string' && ultimoToken.length > 10) {
+                            tokens.push(ultimoToken);
+                            console.log(`  ✅ Token adicionado (do array)`);
+                        }
+                    } else if (typeof pushToken === 'string' && pushToken.length > 10) {
+                        // Se é uma string direta
+                        tokens.push(pushToken);
+                        console.log(`  ✅ Token adicionado (string direta)`);
+                    } else {
+                        console.log(`  ❌ Token inválido`);
+                    }
+                } else {
+                    console.log(`  ❌ Sem pushToken`);
+                }
+                console.log('---');
+            });
+
+            if (tokens.length === 0) {
+                console.log('⚠️ Nenhum token de push disponível para notificar');
+                return {
+                    success: false,
+                    message: 'Nenhum token de push disponível',
+                    debug: {
+                        usuariosEncontrados: usuarios.length,
+                        usuariosComToken: 0
+                    }
+                };
+            }
+
+            console.log(`📤 Total de tokens válidos: ${tokens.length}`);
+            tokens.forEach((token, i) => {
+                console.log(`  Token ${i + 1}: ${token.substring(0, 30)}...`);
+            });
+
+            // 3. Preparar mensagem
+            const title = '📍 Nova Visita Agendada';
+            const body = `${dados.corretorNome} agendou visita para ${dados.dataVisita} às ${dados.horaVisita}`;
+
+            const notificationData = {
+                type: 'nova_visita',
+                negociacaoId,
+                imovelId: imovel._id.toString(),
+                imovelTitulo: dados.imovelTitulo,
+                dataVisita: dados.dataVisita,
+                horaVisita: dados.horaVisita,
+                clienteNome: dados.clienteNome,
+                corretorNome: dados.corretorNome,
+                link: `/negociacoes/${negociacaoId}`
+            };
+
+            // 4. Enviar notificação
+            const result = await this.notificacaoService.sendPush(
+                tokens,
+                title,
+                body,
+                notificationData
+            );
+
+            // 5. Log para debug
+            console.log(`📅 Notificação de visita enviada para ${tokens.length} usuários`);
+            console.log(`✅ Resultado: ${result.message}`);
+            console.log(`✅ Sucessos: ${result.successCount}, Falhas: ${result.failureCount}`);
+
+            return {
+                success: true,
+                message: result.message,
+                tokensEnviados: tokens.length,
+                negociacao: {
+                    codigo: negociacao.codigo,
+                    cliente: cliente.nome,
+                    imovel: imovel.titulo,
+                    dataVisita: dados.dataVisita,
+                    horaVisita: dados.horaVisita
+                },
+                debug: {
+                    usuariosEncontrados: usuarios.length,
+                    tokensEnviados: tokens.length,
+                    successCount: result.successCount,
+                    failureCount: result.failureCount
+                }
+            };
+
+        } catch (error: any) {
+            console.error('❌ Erro ao enviar notificação de visita:', error);
+            return {
+                success: false,
+                message: 'Erro ao enviar notificação: ' + error.message
+            };
+        }
     }
 }

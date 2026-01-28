@@ -28,7 +28,7 @@ export class AgendamentoController {
     @Roles(...ROLES_ACESS)
     async check(@Query('data') data: string, @Req() req: RequestWithUser) {
         // Removemos o imovelId da query, pois validamos o corretor logado
-        const conflito = await this.agendamentoService.findByDateAndUser(data, req.user.userId);
+        const conflito = await this.agendamentoService.findByDateAndUser(data, req.user.userId!);
         return {
             disponivel: !conflito,
             mensagem: conflito ? 'Você já tem uma visita agendada para este horário.' : 'Horário livre na sua agenda.'
@@ -53,7 +53,7 @@ export class AgendamentoController {
     @Roles(...ROLES_ACESS)
     async getOcupados(@Query('data') data: string, @Req() req: RequestWithUser) {
         // Busca os horários que o usuário logado está ocupado
-        return this.agendamentoService.findHorariosOcupadosDoUsuario(req.user.userId, data);
+        return this.agendamentoService.findHorariosOcupadosDoUsuario(req.user.userId!, data);
     }
 
     @Get(':id')

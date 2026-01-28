@@ -104,6 +104,7 @@ export class AuthService {
             sub: usuario._id.toString(),
             perfil: usuario.perfil,
             empresaId: usuario.empresa.toString(),
+            pushToken: usuario.pushToken
         };
 
         // ⭐️ MODIFICADO: Remove tokens antigos e adiciona apenas o novo

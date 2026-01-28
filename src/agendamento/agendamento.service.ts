@@ -9,15 +9,80 @@ import { ImovelService } from 'src/imovel/imovel.service';
 import { ClienteService } from 'src/cliente/cliente.service';
 import { UsuarioPayload } from 'src/auth/interfaces/usuario-payload.interface';
 import { NotificacaoService } from 'src/notificacao/notificacao.service';
+import { Usuario } from 'src/usuario/schemas/usuario.schema';
+
+// Tipo para agendamento com campos básicos
+type AgendamentoBasico = {
+    _id: Types.ObjectId;
+    empresa: Types.ObjectId;
+    dataHora: Date;
+    [key: string]: any;
+};
 
 @Injectable()
 export class AgendamentoService {
     constructor(
         @InjectModel(Agendamento.name) private readonly agendamentoModel: Model<AgendamentoDocument>,
+        @InjectModel(Usuario.name) private readonly usuarioModel: Model<Usuario>,
+
         private readonly clienteService: ClienteService,
         private readonly imovelService: ImovelService,
         private readonly notificacaoService: NotificacaoService,
     ) { }
+
+    private async notificarNovoAgendamento(agendamento: AgendamentoBasico, criador: UsuarioPayload): Promise<void> {
+        try {
+            // Busca todos os usuários da empresa (exceto o criador)
+            const usuarios = await this.usuarioModel.find({
+                empresa: new Types.ObjectId(agendamento.empresa),
+                _id: { $ne: new Types.ObjectId(criador.userId) }, // Não notifica quem criou
+                pushToken: { $exists: true, $not: { $size: 0 } },
+                perfil: { $in: ['CORRETOR', 'GERENTE', 'ADM_GERAL'] }
+            }).exec();
+
+            // Coleta todos os tokens únicos
+            const todosTokens: string[] = [];
+            usuarios.forEach(usuario => {
+                if (usuario.pushToken && Array.isArray(usuario.pushToken)) {
+                    usuario.pushToken.forEach(token => {
+                        if (token && token.length > 10) {
+                            todosTokens.push(token);
+                        }
+                    });
+                }
+            });
+
+            const tokensUnicos = [...new Set(todosTokens)];
+
+            if (tokensUnicos.length === 0) return;
+
+            // Formatar data para exibição
+            const dataFormatada = new Date(agendamento.dataHora).toLocaleDateString('pt-BR');
+            const horaFormatada = new Date(agendamento.dataHora).toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            // Envia notificação
+            await this.notificacaoService.sendPush(
+                tokensUnicos,
+                "📅 NOVO AGENDAMENTO CRIADO!",
+                `${criador.nome} agendou visita para ${dataFormatada} às ${horaFormatada}`,
+                {
+                    agendamentoId: agendamento._id.toString(),
+                    empresaId: agendamento.empresa.toString(),
+                    url: '/agendamentos',
+                    type: 'new_agendamento',
+                    criador: criador.nome
+                }
+            );
+
+            console.log(`📅 Notificação enviada para ${tokensUnicos.length} usuários sobre novo agendamento`);
+        } catch (error) {
+            console.error('❌ Erro ao notificar novo agendamento:', error);
+            // Não lança erro para não quebrar o fluxo de criação
+        }
+    }
 
     async create(createAgendamentoDto: CreateAgendamentoDto, user: UsuarioPayload): Promise<Agendamento> {
         const empresaId = new Types.ObjectId(user.empresa);
@@ -34,7 +99,7 @@ export class AgendamentoService {
         dataParaAgendar.setMilliseconds(0);
 
         // Validação de conflito do CORRETOR (Você já tem essa lógica)
-        const conflitoCorretor = await this.findByDateAndUser(dataParaAgendar.toISOString(), user.userId);
+        const conflitoCorretor = await this.findByDateAndUser(dataParaAgendar.toISOString(), user.userId!);
         if (conflitoCorretor) {
             throw new BadRequestException('Você já possui um agendamento neste horário.');
         }
@@ -50,7 +115,19 @@ export class AgendamentoService {
                 status: 'PENDENTE'
             });
 
-            return await createdAgendamento.save();
+            const agendamentoSalvo = await createdAgendamento.save();
+
+            // ⭐️ DISPARAR NOTIFICAÇÃO APÓS SALVAR - Convertendo para tipo básico
+            const agendamentoBasico: AgendamentoBasico = {
+                _id: agendamentoSalvo._id,
+                empresa: agendamentoSalvo.empresa,
+                dataHora: agendamentoSalvo.dataHora
+            };
+
+            await this.notificarNovoAgendamento(agendamentoBasico, user);
+
+            return agendamentoSalvo;
+
         } catch (error) {
             // ⭐️ TRATAMENTO DO ERRO DE CHAVE DUPLICADA (E11000)
             if (error.code === 11000) {
@@ -119,7 +196,7 @@ export class AgendamentoService {
             return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
         });
     }
-    
+
     async updateStatus(id: string, status: string, motivo: string, user: UsuarioPayload): Promise<Agendamento> {
         const query: any = { _id: id, empresa: new Types.ObjectId(user.empresa) };
 
@@ -136,10 +213,72 @@ export class AgendamentoService {
                 }
             },
             { new: true }
-        ).exec();
+        ).populate('usuarioCorretor').exec();
 
         if (!agendamento) throw new NotFoundException('Agendamento não encontrado ou sem permissão.');
+
+        // ⭐️ NOTIFICAR MUDANÇA DE STATUS
+        await this.notificarMudancaStatus(agendamento as any, status, motivo, user);
+
         return agendamento;
+    }
+
+    private async notificarMudancaStatus(agendamento: any, novoStatus: string, motivo: string, usuarioAlteracao: UsuarioPayload): Promise<void> {
+        try {
+            // Notifica apenas o corretor responsável
+            const corretor = agendamento.usuarioCorretor;
+            if (!corretor || !corretor.pushToken) return;
+
+            const tokens = Array.isArray(corretor.pushToken)
+                ? corretor.pushToken.filter((t: string) => t && t.length > 10)
+                : [];
+
+            if (tokens.length === 0) return;
+
+            const dataFormatada = new Date(agendamento.dataHora).toLocaleDateString('pt-BR');
+            const horaFormatada = new Date(agendamento.dataHora).toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            let mensagem = '';
+            let titulo = '';
+
+            switch (novoStatus) {
+                case 'CONFIRMADO':
+                    titulo = '✅ AGENDAMENTO CONFIRMADO';
+                    mensagem = `Sua visita para ${dataFormatada} às ${horaFormatada} foi confirmada`;
+                    break;
+                case 'CANCELADO':
+                    titulo = '❌ AGENDAMENTO CANCELADO';
+                    mensagem = `Visita para ${dataFormatada} às ${horaFormatada} foi cancelada`;
+                    if (motivo) mensagem += ` (Motivo: ${motivo})`;
+                    break;
+                case 'REALIZADO':
+                    titulo = '🏁 VISITA REALIZADA';
+                    mensagem = `Visita para ${dataFormatada} às ${horaFormatada} marcada como realizada`;
+                    break;
+                default:
+                    return;
+            }
+
+            await this.notificacaoService.sendPush(
+                tokens,
+                titulo,
+                mensagem,
+                {
+                    agendamentoId: agendamento._id.toString(),
+                    empresaId: agendamento.empresa.toString(),
+                    url: '/agendamentos',
+                    type: 'status_agendamento',
+                    novoStatus: novoStatus
+                }
+            );
+
+            console.log(`📅 Notificação de status enviada para corretor ${corretor.nome}`);
+        } catch (error) {
+            console.error('❌ Erro ao notificar mudança de status:', error);
+        }
     }
 
     async findOne(agendamentoId: string, empresaId: string): Promise<Agendamento> {
@@ -185,4 +324,60 @@ export class AgendamentoService {
         if (result.deletedCount === 0) throw new NotFoundException('Agendamento não encontrado.');
         return { message: 'Removido com sucesso.' };
     }
+
+    async enviarLembretes(): Promise<void> {
+        try {
+            const agora = new Date();
+            const umaHoraDepois = new Date(agora.getTime() + 60 * 60 * 1000);
+
+            const agendamentosProximos = await this.agendamentoModel.find({
+                status: 'PENDENTE',
+                dataHora: {
+                    $gte: agora,
+                    $lte: umaHoraDepois
+                }
+            })
+                .populate('usuarioCorretor', 'nome pushToken')
+                .populate('imovel', 'titulo')
+                .lean()
+                .exec() as any[]; // ⭐️ CAST SIMPLES PARA ANY[]
+
+            for (const agendamento of agendamentosProximos) {
+                const corretor = agendamento.usuarioCorretor;
+                const imovel = agendamento.imovel;
+
+                if (!corretor || !imovel) continue;
+
+                let tokens: string[] = [];
+                if (corretor.pushToken) {
+                    if (Array.isArray(corretor.pushToken)) {
+                        tokens = corretor.pushToken.filter((t: string) => t && t.length > 10);
+                    } else if (typeof corretor.pushToken === 'string' && corretor.pushToken.length > 10) {
+                        tokens = [corretor.pushToken];
+                    }
+                }
+
+                if (tokens.length === 0) continue;
+
+                const horaFormatada = new Date(agendamento.dataHora).toLocaleTimeString('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                await this.notificacaoService.sendPush(
+                    tokens,
+                    "⏰ LEMBRETE DE VISITA!",
+                    `Você tem visita agendada para ${horaFormatada} em ${imovel.titulo}`,
+                    {
+                        agendamentoId: agendamento._id.toString(),
+                        type: 'lembrete_agendamento',
+                        url: '/agendamentos'
+                    }
+                );
+            }
+        } catch (error) {
+            console.error('❌ Erro ao enviar lembretes:', error);
+        }
+    }
+
 }

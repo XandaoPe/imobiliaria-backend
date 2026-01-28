@@ -176,4 +176,26 @@ export class UsuarioService {
 
     return { message: `Usuário com ID "${usuarioId}" removido com sucesso.` };
   }
+
+  async buscarUsuariosSemToken(empresaId: string) {
+    const usuariosSemToken = await this.usuarioModel.find({
+      empresa: new Types.ObjectId(empresaId),
+      $or: [
+        { pushToken: { $exists: false } },
+        { pushToken: '' },
+        { pushToken: null },
+        { pushToken: { $size: 0 } } // se for array vazio
+      ]
+    });
+
+    return {
+      total: usuariosSemToken.length,
+      usuarios: usuariosSemToken.map(u => ({
+        nome: u.nome,
+        email: u.email,
+        id: u._id.toString()
+      }))
+    };
+  }
+  
 }

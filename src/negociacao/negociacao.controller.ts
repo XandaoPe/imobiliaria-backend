@@ -96,4 +96,25 @@ export class NegociacaoController {
             gerarNovaProspeccao // Passa para o service
         );
     }
+
+    @Post(':id/notificar-visita')
+    @ApiOperation({ summary: 'Envia notificação de visita agendada para os corretores' })
+    async notificarVisita(
+        @Param('id') id: string,
+        @Body() body: {
+            dataVisita: string;
+            horaVisita: string;
+            imovelTitulo: string;
+            clienteNome: string;
+            corretorNome: string;
+        },
+        @Req() req: RequestWithUser
+    ) {
+        return this.negociacaoService.notificarVisitaAgendada(
+            id,
+            body,
+            req.user.empresa,
+            req.user
+        );
+    }
 }

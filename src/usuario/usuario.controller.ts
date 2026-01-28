@@ -98,4 +98,17 @@ export class UsuarioController {
     return this.usuarioService.remove(id, req.user.empresa);
   }
 
+  @Post('forcar-atualizacao-tokens')
+  @UseGuards(AuthGuard('jwt'))
+  async forcarAtualizacaoTokens(@Req() req: RequestWithUser) {
+    // Buscar todos os usuários sem token usando o service
+    const resultado = await this.usuarioService.buscarUsuariosSemToken(req.user.empresa);
+
+    return {
+      totalUsuarios: resultado.total,
+      usuarios: resultado.usuarios,
+      mensagem: `Existem ${resultado.total} usuários sem token registrado`
+    };
+  }
+
 }

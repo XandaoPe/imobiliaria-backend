@@ -1,8 +1,7 @@
-// src/notificacao/notificacao.service.ts
 import { Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
 import { MailerService } from '@nestjs-modules/mailer';
 import * as admin from 'firebase-admin';
-import * as path from 'path'; // Adicione este import
+import * as path from 'path';
 import { join } from 'path';
 
 @Injectable()
@@ -39,22 +38,27 @@ export class NotificacaoService implements OnModuleInit {
     }
 
     /**
-     * NOVO: Envia Notificação Push via Firebase Cloud Messaging
-     */
-    /**
-     * NOVO: Envia Notificação Push para um ou vários dispositivos
+     * Envia Notificação Push para um ou vários dispositivos
      */
     async sendPush(
         tokens: string | string[],
         title: string,
         body: string,
         data?: any
-    ): Promise<{ success: boolean; message: string }> {
+    ): Promise<{
+        success: boolean;
+        message: string;
+        successCount?: number;
+        failureCount?: number;
+    }> { // <-- ATUALIZE O TIPO DE RETORNO AQUI
         const tokenArray = Array.isArray(tokens) ? tokens : [tokens];
         const uniqueTokens = [...new Set(tokenArray.filter(t => !!t && t.length > 10))];
 
         if (uniqueTokens.length === 0) {
-            return { success: false, message: 'Nenhum token de push disponível.' };
+            return {
+                success: false,
+                message: 'Nenhum token de push disponível.'
+            };
         }
 
         try {
@@ -77,7 +81,6 @@ export class NotificacaoService implements OnModuleInit {
                 },
             });
 
-
             if (response.failureCount > 0) {
                 response.responses.forEach((resp, idx) => {
                     if (!resp.success) {
@@ -88,14 +91,19 @@ export class NotificacaoService implements OnModuleInit {
 
             return {
                 success: response.successCount > 0,
-                message: `${response.successCount} notificações enviadas com sucesso`
+                message: `${response.successCount} notificações enviadas com sucesso`,
+                successCount: response.successCount,
+                failureCount: response.failureCount
             };
-        } catch (error) {
+        } catch (error: any) {
             console.error('❌ Erro crítico no Firebase:', error);
-            return { success: false, message: 'Erro no Firebase: ' + error.message };
+            return {
+                success: false,
+                message: 'Erro no Firebase: ' + error.message
+            };
         }
     }
-    
+
     /**
      * SEU MÉTODO EXISTENTE: Envia e-mail
      */

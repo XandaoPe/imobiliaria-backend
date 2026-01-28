@@ -8,10 +8,14 @@ import { AuthModule } from 'src/auth/auth.module';
 import { ImovelModule } from 'src/imovel/imovel.module';
 import { ClienteModule } from 'src/cliente/cliente.module'; // ⭐️ Importar o ClienteModule
 import { NotificacaoModule } from 'src/notificacao/notificacao.module';
+import { Usuario, UsuarioSchema } from 'src/usuario/schemas/usuario.schema';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Agendamento.name, schema: AgendamentoSchema }]),
+    MongooseModule.forFeature([
+      { name: Agendamento.name, schema: AgendamentoSchema },
+      { name: Usuario.name, schema: UsuarioSchema },
+    ]),
     AuthModule,
     ImovelModule,
     ClienteModule, // ⭐️ ESTA LINHA DEVE ESTAR PRESENTE
