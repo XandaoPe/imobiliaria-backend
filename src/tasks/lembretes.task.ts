@@ -9,14 +9,12 @@ export class LembretesTask {
 
     constructor(private readonly agendamentoService: AgendamentoService) { }
 
-    // Executa a cada 5 minutos
-    @Cron(CronExpression.EVERY_5_MINUTES)
+    @Cron(CronExpression.EVERY_MINUTE)
     async enviarLembretesAgendamentos() {
-        this.logger.log('Iniciando envio de lembretes de agendamentos...');
+        this.logger.log('Verificando lembretes de agendamentos...');
 
         try {
             await this.agendamentoService.enviarLembretes();
-            this.logger.log('Lembretes de agendamentos enviados com sucesso');
         } catch (error) {
             this.logger.error('Erro ao enviar lembretes:', error);
         }

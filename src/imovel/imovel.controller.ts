@@ -17,6 +17,7 @@ import { Roles } from 'src/auth/decorators/roles.decorator';
 import { PerfisEnum } from 'src/usuario/schemas/usuario.schema';
 import { UsuarioPayload } from 'src/auth/interfaces/usuario-payload.interface';
 import { UploadService } from '../upload/upload.service';
+import { UsuarioService } from 'src/usuario/usuario.service';
 
 export interface RequestWithUser extends Request {
   user: UsuarioPayload;
@@ -29,6 +30,7 @@ const ROLES_ACCESS = [PerfisEnum.CORRETOR, PerfisEnum.GERENTE, PerfisEnum.ADM_GE
 export class ImovelController {
   constructor(private readonly imovelService: ImovelService,
     private readonly uploadService: UploadService,
+    private readonly usuarioService: UsuarioService,
   ) { }
 
   @Post()
@@ -137,4 +139,18 @@ export class ImovelController {
     const empresaId = req.user.empresa;
     return this.imovelService.removePhoto(imovelId, empresaId, filename);
   }
+
+  @Get('usuarios/disponiveis')
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(...ROLES_ACCESS)
+  @ApiOperation({ summary: 'Lista usuários disponíveis para associar a imóveis.' })
+  @ApiQuery({ name: 'perfil', required: false, enum: PerfisEnum, description: 'Filtrar por perfil específico' })
+  async listarUsuariosDisponiveis(
+    @Req() req: RequestWithUser,
+    @Query('perfil') perfil?: PerfisEnum,
+  ): Promise<any[]> {
+    return this.imovelService.findUsuariosPorEmpresa(req.user.empresa, perfil);
+  }
+
 }

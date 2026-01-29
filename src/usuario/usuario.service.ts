@@ -197,5 +197,19 @@ export class UsuarioService {
       }))
     };
   }
+
+
+  async findCorretoresPorEmpresa(empresaId: string): Promise<Usuario[]> {
+    const usuarios = await this.usuarioModel
+      .find({
+        empresa: new Types.ObjectId(empresaId),
+        perfil: PerfisEnum.CORRETOR,
+        ativo: true
+      })
+      .select('nome email perfil ativo')
+      .exec();
+
+    return usuarios.map(u => u.toObject());
+  }
   
 }

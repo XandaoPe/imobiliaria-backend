@@ -43,7 +43,15 @@ export class Agendamento {
 
     @Prop({ type: String, default: '' })
     observacoes: string;
+
+    @Prop({ type: Boolean, default: false })
+    lembreteEnviado: boolean;
+
+    // ⭐️ NOVO CAMPO: Data/hora do lembrete enviado
+    @Prop({ type: Date })
+    dataLembreteEnviado: Date;
 }
+
 
 export const AgendamentoSchema = SchemaFactory.createForClass(Agendamento);
 AgendamentoSchema.index(

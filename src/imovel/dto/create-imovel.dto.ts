@@ -1,79 +1,101 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional, IsNumber, IsBoolean, Min, ValidateIf } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsEnum, IsOptional, IsBoolean, IsNumber, Min, IsMongoId } from 'class-validator';
 import { TipoImovel } from '../schemas/imovel.schema';
 
 export class CreateImovelDto {
+    @ApiProperty({ description: 'Título do imóvel' })
     @IsString()
-    @IsNotEmpty({ message: 'O título é obrigatório' })
     titulo: string;
 
-    @IsEnum(TipoImovel, { message: 'Tipo de imóvel inválido' })
-    @IsNotEmpty({ message: 'O tipo é obrigatório' })
+    @ApiProperty({ enum: TipoImovel, description: 'Tipo do imóvel' })
+    @IsEnum(TipoImovel)
     tipo: TipoImovel;
 
+    @ApiProperty({ description: 'Endereço completo' })
     @IsString()
-    @IsNotEmpty({ message: 'O endereço é obrigatório' })
     endereco: string;
 
-    @IsString()
-    @IsNotEmpty({ message: 'A cidade é obrigatória' })
-    cidade: string;
-
-    // ⭐️ CAMPOS DE CHECKBOX
+    @ApiPropertyOptional({ description: 'Disponível para venda?' })
     @IsBoolean()
     @IsOptional()
     para_venda?: boolean;
 
+    @ApiPropertyOptional({ description: 'Disponível para aluguel?' })
     @IsBoolean()
     @IsOptional()
     para_aluguel?: boolean;
 
-    // ⭐️ VALOR DE VENDA (obrigatório apenas se para_venda = true)
+    @ApiPropertyOptional({ description: 'Valor de venda' })
     @IsNumber()
-    @Min(0, { message: 'O valor de venda deve ser maior ou igual a 0' })
-    @ValidateIf((o) => o.para_venda === true)
-    @IsNotEmpty({ message: 'Valor de venda é obrigatório quando "Para Venda" está marcado' })
+    @Min(0)
+    @IsOptional()
     valor_venda?: number;
 
-    // ⭐️ VALOR DE ALUGUEL (obrigatório apenas se para_aluguel = true)
+    @ApiPropertyOptional({ description: 'Valor de aluguel' })
     @IsNumber()
-    @Min(0, { message: 'O valor de aluguel deve ser maior ou igual a 0' })
-    @ValidateIf((o) => o.para_aluguel === true)
-    @IsNotEmpty({ message: 'Valor de aluguel é obrigatório quando "Para Aluguel" está marcado' })
+    @Min(0)
+    @IsOptional()
     valor_aluguel?: number;
 
+    @ApiPropertyOptional({ description: 'Disponível?' })
     @IsBoolean()
     @IsOptional()
     disponivel?: boolean;
 
+    @ApiPropertyOptional({ description: 'Cidade' })
+    @IsString()
+    @IsOptional()
+    cidade?: string;
+
+    @ApiPropertyOptional({ description: 'Descrição detalhada' })
     @IsString()
     @IsOptional()
     descricao?: string;
 
+    @ApiPropertyOptional({ description: 'Detalhes adicionais' })
     @IsString()
     @IsOptional()
     detalhes?: string;
 
+    @ApiPropertyOptional({ description: 'Número de quartos' })
     @IsNumber()
+    @Min(0)
     @IsOptional()
     quartos?: number;
 
+    @ApiPropertyOptional({ description: 'Número de banheiros' })
     @IsNumber()
+    @Min(0)
     @IsOptional()
     banheiros?: number;
 
+    @ApiPropertyOptional({ description: 'Área do terreno (m²)' })
     @IsNumber()
+    @Min(0)
     @IsOptional()
     area_terreno?: number;
 
+    @ApiPropertyOptional({ description: 'Área construída (m²)' })
     @IsNumber()
+    @Min(0)
     @IsOptional()
     area_construida?: number;
 
+    @ApiPropertyOptional({ description: 'Tem garagem?' })
     @IsBoolean()
     @IsOptional()
     garagem?: boolean;
 
-    @IsString()
-    @IsNotEmpty({ message: 'O proprietário é obrigatório' })
-    proprietario: string; // ID do Cliente/Proprietário
+    @ApiProperty({ description: 'ID do proprietário' })
+    @IsMongoId()
+    proprietario: string;
+
+    @ApiPropertyOptional({
+        description: 'ID do corretor responsável',
+        type: String,
+        nullable: true // ⭐️ IMPORTANTE: Indica que pode ser null
+    })
+    @IsMongoId()
+    @IsOptional()
+    corretor?: string | null; // ⭐️ MUDAR: string | null em vez de apenas string
 }

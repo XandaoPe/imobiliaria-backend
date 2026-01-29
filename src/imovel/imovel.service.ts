@@ -5,12 +5,14 @@ import { Imovel, ImovelDocument } from './schemas/imovel.schema';
 import { CreateImovelDto } from './dto/create-imovel.dto';
 import { UpdateImovelDto } from './dto/update-imovel.dto';
 import { UploadService } from 'src/upload/upload.service';
+import { PerfisEnum, Usuario, UsuarioDocument } from 'src/usuario/schemas/usuario.schema';
 
 @Injectable()
 export class ImovelService {
     constructor(
         @InjectModel(Imovel.name) private imovelModel: Model<ImovelDocument>,
         private readonly uploadService: UploadService,
+        @InjectModel(Usuario.name) private usuarioModel: Model<UsuarioDocument>
     ) { }
 
     // ⭐️ MÉTODO DE VALIDAÇÃO: Centraliza a verificação do ID BSON
@@ -28,20 +30,20 @@ export class ImovelService {
         }
     }
 
-
-    // 1. CRIAÇÃO: Adiciona o empresaId do token
     async create(createImovelDto: CreateImovelDto, empresaId: string): Promise<Imovel> {
-
-        
-        // ⭐️ Aplica a validação
         const empresaObjectId = this.validateAndConvertId(empresaId, 'ID da Empresa');
-        
-        const createdImovel = new this.imovelModel({
+
+        const imovelData: any = {
             ...createImovelDto,
             empresa: empresaObjectId,
-        });
-        
+        };
 
+        // ⭐️ Converte o ID do corretor se fornecido
+        if (createImovelDto.corretor) {
+            imovelData.corretor = this.validateAndConvertId(createImovelDto.corretor, 'ID do Corretor');
+        }
+
+        const createdImovel = new this.imovelModel(imovelData);
         return createdImovel.save();
     }
 
@@ -52,7 +54,7 @@ export class ImovelService {
             {
                 $match: { empresa: empresaObjectId }
             },
-            // ⭐️ CORREÇÃO: Converte proprietario string para ObjectId antes do lookup
+            // ⭐️ CORREÇÃO: Converte proprietario string para ObjectId
             {
                 $addFields: {
                     proprietarioObjectId: {
@@ -61,15 +63,32 @@ export class ImovelService {
                             then: { $toObjectId: "$proprietario" },
                             else: "$proprietario"
                         }
+                    },
+                    // ⭐️ NOVO: Converte corretor string para ObjectId
+                    corretorObjectId: {
+                        $cond: {
+                            if: { $eq: [{ $type: "$corretor" }, "string"] },
+                            then: { $toObjectId: "$corretor" },
+                            else: "$corretor"
+                        }
                     }
                 }
             },
             {
                 $lookup: {
                     from: 'clientes',
-                    localField: 'proprietarioObjectId', // ⭐️ Usa o campo convertido
+                    localField: 'proprietarioObjectId',
                     foreignField: '_id',
                     as: 'proprietario_info',
+                },
+            },
+            // ⭐️ NOVO: Lookup para o corretor
+            {
+                $lookup: {
+                    from: 'usuarios',
+                    localField: 'corretorObjectId',
+                    foreignField: '_id',
+                    as: 'corretor_info',
                 },
             },
             {
@@ -82,15 +101,16 @@ export class ImovelService {
             },
             { $unwind: '$empresa_info' },
             { $unwind: { path: '$proprietario_info', preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: '$corretor_info', preserveNullAndEmptyArrays: true } }, // ⭐️ NOVO
         ];
 
-        // Filtro de Status (Disponível/Indisponível)
+        // Filtro de Status
         if (status) {
             const isDisponivel = status.toUpperCase() === 'DISPONIVEL';
             pipeline.push({ $match: { disponivel: isDisponivel } });
         }
 
-        // Busca Textual (Título, Endereço, Cidade e NOME DA EMPRESA)
+        // Busca Textual
         if (search) {
             const regex = new RegExp(search, 'i');
             pipeline.push({
@@ -100,13 +120,15 @@ export class ImovelService {
                         { endereco: { $regex: regex } },
                         { cidade: { $regex: regex } },
                         { descricao: { $regex: regex } },
-                        { 'empresa_info.nome': { $regex: regex } }, // Agora a busca por nome funciona logado!
+                        { 'empresa_info.nome': { $regex: regex } },
+                        { 'corretor_info.nome': { $regex: regex } }, // ⭐️ NOVO: busca por nome do corretor
+                        { 'corretor_info.email': { $regex: regex } }, // ⭐️ NOVO: busca por email do corretor
                     ],
                 },
             });
         }
 
-        // Projeta os dados para o formato que o Frontend espera
+        // Projeta os dados
         pipeline.push({
             $project: {
                 titulo: 1,
@@ -127,7 +149,6 @@ export class ImovelService {
                 area_construida: 1,
                 garagem: 1,
                 empresa: '$empresa_info',
-                // ⭐️ Retorna o proprietário populado ou o ID original
                 proprietario: {
                     $cond: {
                         if: { $ifNull: ["$proprietario_info", false] },
@@ -135,14 +156,26 @@ export class ImovelService {
                             _id: { $toString: "$proprietario_info._id" },
                             nome: "$proprietario_info.nome"
                         },
-                        else: "$proprietario" // Fallback para ID string
+                        else: "$proprietario"
+                    }
+                },
+                // ⭐️ NOVO: Projeta o corretor
+                corretor: {
+                    $cond: {
+                        if: { $ifNull: ["$corretor_info", false] },
+                        then: {
+                            _id: { $toString: "$corretor_info._id" },
+                            nome: "$corretor_info.nome",
+                            email: "$corretor_info.email",
+                            perfil: "$corretor_info.perfil"
+                        },
+                        else: "$corretor"
                     }
                 }
             }
         });
 
         const result = await this.imovelModel.aggregate(pipeline).exec();
-
         return result;
     }
 
@@ -156,7 +189,6 @@ export class ImovelService {
                     as: 'empresa_info',
                 },
             },
-            // ⭐️ ADICIONADO: Populate do proprietário
             {
                 $lookup: {
                     from: 'clientes',
@@ -165,8 +197,18 @@ export class ImovelService {
                     as: 'proprietario_info',
                 },
             },
+            // ⭐️ NOVO: Lookup para corretor na busca pública
+            {
+                $lookup: {
+                    from: 'usuarios',
+                    localField: 'corretor',
+                    foreignField: '_id',
+                    as: 'corretor_info',
+                },
+            },
             { $unwind: '$empresa_info' },
             { $unwind: { path: '$proprietario_info', preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: '$corretor_info', preserveNullAndEmptyArrays: true } }, // ⭐️ NOVO
             {
                 $match: {
                     disponivel: true,
@@ -174,7 +216,6 @@ export class ImovelService {
             },
         ];
 
-        // 2. Se houver busca, adicionamos o estágio de Match com o OR
         if (search) {
             const regex = new RegExp(search, 'i');
             pipeline.push({
@@ -184,13 +225,13 @@ export class ImovelService {
                         { cidade: { $regex: regex } },
                         { endereco: { $regex: regex } },
                         { descricao: { $regex: regex } },
-                        { 'empresa_info.nome': { $regex: regex } }, // Agora a busca no nome da empresa funciona!
+                        { 'empresa_info.nome': { $regex: regex } },
+                        { 'corretor_info.nome': { $regex: regex } }, // ⭐️ NOVO
                     ],
                 },
             });
         }
 
-        // 3. Projetamos o resultado para manter a estrutura original do seu Objeto (opcional mas recomendado)
         pipeline.push({
             $project: {
                 titulo: 1,
@@ -211,7 +252,6 @@ export class ImovelService {
                 area_construida: 1,
                 garagem: 1,
                 empresa: '$empresa_info',
-                // ⭐️ GARANTIR que está incluindo o proprietario:
                 proprietario: {
                     $cond: {
                         if: { $eq: [{ $type: "$proprietario_info" }, "object"] },
@@ -219,7 +259,19 @@ export class ImovelService {
                             _id: "$proprietario_info._id",
                             nome: "$proprietario_info.nome"
                         },
-                        else: "$proprietario" // Mantém o ID se não populou
+                        else: "$proprietario"
+                    }
+                },
+                // ⭐️ NOVO: Projeta o corretor na busca pública
+                corretor: {
+                    $cond: {
+                        if: { $eq: [{ $type: "$corretor_info" }, "object"] },
+                        then: {
+                            _id: "$corretor_info._id",
+                            nome: "$corretor_info.nome",
+                            email: "$corretor_info.email"
+                        },
+                        else: "$corretor"
                     }
                 }
             }
@@ -228,7 +280,38 @@ export class ImovelService {
         return this.imovelModel.aggregate(pipeline).exec();
     }
 
-    // 3. BUSCA ÚNICA: Filtra por ID do Imóvel E ID da Empresa
+    async findUsuariosPorEmpresa(empresaId: string, perfil?: PerfisEnum): Promise<any[]> {
+        const empresaObjectId = this.validateAndConvertId(empresaId, 'ID da Empresa');
+
+        // Cria o filtro base
+        const filtro: any = {
+            empresa: empresaObjectId,
+            ativo: true
+        };
+
+        // Adiciona filtro por perfil se especificado
+        if (perfil && Object.values(PerfisEnum).includes(perfil)) {
+            filtro.perfil = perfil;
+        }
+
+        const usuarios = await this.usuarioModel
+            .find(filtro)
+            .select('nome email perfil ativo')
+            .exec();
+
+        return usuarios.map(usuario => {
+            const obj = usuario.toObject();
+            return {
+                id: obj._id ? obj._id.toString() : obj.id,
+                _id: obj._id ? obj._id.toString() : obj.id,
+                nome: obj.nome,
+                email: obj.email,
+                perfil: obj.perfil,
+                ativo: obj.ativo
+            };
+        });
+    }
+
     async findOne(imovelId: string, empresaId: string): Promise<any> {
         const empresaObjectId = this.validateAndConvertId(empresaId, 'ID da Empresa');
         const imovelObjectId = this.validateAndConvertId(imovelId, 'ID do Imóvel');
@@ -248,6 +331,14 @@ export class ImovelService {
                             then: { $toObjectId: "$proprietario" },
                             else: "$proprietario"
                         }
+                    },
+                    // ⭐️ NOVO: Converte corretor
+                    corretorObjectId: {
+                        $cond: {
+                            if: { $eq: [{ $type: "$corretor" }, "string"] },
+                            then: { $toObjectId: "$corretor" },
+                            else: "$corretor"
+                        }
                     }
                 }
             },
@@ -257,6 +348,15 @@ export class ImovelService {
                     localField: 'proprietarioObjectId',
                     foreignField: '_id',
                     as: 'proprietario_info',
+                },
+            },
+            // ⭐️ NOVO: Lookup para corretor
+            {
+                $lookup: {
+                    from: 'usuarios',
+                    localField: 'corretorObjectId',
+                    foreignField: '_id',
+                    as: 'corretor_info',
                 },
             },
             {
@@ -269,6 +369,7 @@ export class ImovelService {
             },
             { $unwind: '$empresa_info' },
             { $unwind: { path: '$proprietario_info', preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: '$corretor_info', preserveNullAndEmptyArrays: true } }, // ⭐️ NOVO
             {
                 $project: {
                     titulo: 1,
@@ -298,6 +399,19 @@ export class ImovelService {
                             },
                             else: "$proprietario"
                         }
+                    },
+                    // ⭐️ NOVO: Projeta o corretor
+                    corretor: {
+                        $cond: {
+                            if: { $ifNull: ["$corretor_info", false] },
+                            then: {
+                                _id: { $toString: "$corretor_info._id" },
+                                nome: "$corretor_info.nome",
+                                email: "$corretor_info.email",
+                                perfil: "$corretor_info.perfil"
+                            },
+                            else: "$corretor"
+                        }
                     }
                 }
             }
@@ -311,10 +425,20 @@ export class ImovelService {
     }
 
     async update(imovelId: string, updateImovelDto: UpdateImovelDto, empresaId: string): Promise<Imovel> {
-
-        // ⭐️ Aplica a validação
         const empresaObjectId = this.validateAndConvertId(empresaId, 'ID da Empresa');
         const imovelObjectId = this.validateAndConvertId(imovelId, 'ID do Imóvel');
+
+        const updateData: any = { ...updateImovelDto };
+
+        // ⭐️ Converte o ID do corretor se fornecido
+        if (updateImovelDto.corretor !== undefined) {
+            if (updateImovelDto.corretor) {
+                updateData.corretor = this.validateAndConvertId(updateImovelDto.corretor, 'ID do Corretor');
+            } else {
+                // Se for null ou string vazia, remove o corretor
+                updateData.corretor = null;
+            }
+        }
 
         const updatedImovel = await this.imovelModel
             .findOneAndUpdate(
@@ -322,7 +446,7 @@ export class ImovelService {
                     _id: imovelObjectId,
                     empresa: empresaObjectId
                 },
-                updateImovelDto,
+                updateData,
                 { new: true },
             )
             .exec();
@@ -413,4 +537,5 @@ export class ImovelService {
             throw new Error(`Erro ao processar remoção: ${error.message}`);
         }
     }
+
 }

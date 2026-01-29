@@ -1,5 +1,5 @@
 // src/agendamento/agendamento.service.ts
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Agendamento, AgendamentoDocument } from './schemas/agendamento.schema';
@@ -21,6 +21,8 @@ type AgendamentoBasico = {
 
 @Injectable()
 export class AgendamentoService {
+    private readonly logger = new Logger(AgendamentoService.name);
+
     constructor(
         @InjectModel(Agendamento.name) private readonly agendamentoModel: Model<AgendamentoDocument>,
         @InjectModel(Usuario.name) private readonly usuarioModel: Model<Usuario>,
@@ -112,7 +114,9 @@ export class AgendamentoService {
                 imovel: new Types.ObjectId(createAgendamentoDto.imovelId),
                 cliente: new Types.ObjectId(createAgendamentoDto.clienteId),
                 dataHora: dataParaAgendar,
-                status: 'PENDENTE'
+                status: 'PENDENTE',
+                lembreteEnviado: false, // ⭐️ Inicia como false
+                dataLembreteEnviado: null
             });
 
             const agendamentoSalvo = await createdAgendamento.save();
@@ -329,46 +333,66 @@ export class AgendamentoService {
         return { message: 'Removido com sucesso.' };
     }
 
+    // src/agendamento/agendamento.service.ts
     async enviarLembretes(): Promise<void> {
         try {
             const agora = new Date();
-            const umaHoraDepois = new Date(agora.getTime() + 60 * 60 * 1000);
 
+            // Define janela de 59-61 minutos no futuro
+            const umaHoraUmMinutoDepois = new Date(agora.getTime() + 61 * 60 * 1000);
+            const umaHoraUmMinutoAntes = new Date(agora.getTime() + 59 * 60 * 1000);
+
+            // Busca agendamentos
             const agendamentosProximos = await this.agendamentoModel.find({
                 status: 'PENDENTE',
                 dataHora: {
-                    $gte: agora,
-                    $lte: umaHoraDepois
-                }
+                    $gte: umaHoraUmMinutoAntes,
+                    $lte: umaHoraUmMinutoDepois
+                },
+                lembreteEnviado: false
             })
                 .populate('usuarioCorretor', 'nome pushToken')
                 .populate('imovel', 'titulo')
                 .lean()
-                .exec() as any[]; // ⭐️ CAST SIMPLES PARA ANY[]
+                .exec();
 
-            for (const agendamento of agendamentosProximos) {
+            this.logger.log(`Encontrados ${agendamentosProximos.length} agendamentos para lembrete`);
+
+            for (const agendamento of agendamentosProximos as any[]) {
                 const corretor = agendamento.usuarioCorretor;
                 const imovel = agendamento.imovel;
 
-                if (!corretor || !imovel) continue;
+                if (!corretor || !imovel) {
+                    this.logger.warn('Agendamento sem corretor ou imóvel:', agendamento._id);
+                    continue;
+                }
 
+                // Extrai tokens
                 let tokens: string[] = [];
-                if (corretor.pushToken) {
-                    if (Array.isArray(corretor.pushToken)) {
-                        tokens = corretor.pushToken.filter((t: string) => t && t.length > 10);
-                    } else if (typeof corretor.pushToken === 'string' && corretor.pushToken.length > 10) {
-                        tokens = [corretor.pushToken];
+                const pushToken = corretor.pushToken;
+
+                if (pushToken) {
+                    if (Array.isArray(pushToken)) {
+                        tokens = pushToken.filter((t: string) => t && t.length > 10);
+                    } else if (typeof pushToken === 'string' && pushToken.length > 10) {
+                        tokens = [pushToken];
                     }
                 }
 
-                if (tokens.length === 0) continue;
+                if (tokens.length === 0) {
+                    this.logger.warn(`Corretor ${corretor.nome} não tem tokens de push válidos`);
+                    continue;
+                }
 
+                // Formata hora
                 const horaFormatada = new Date(agendamento.dataHora).toLocaleTimeString('pt-BR', {
                     hour: '2-digit',
-                    minute: '2-digit'
+                    minute: '2-digit',
+                    timeZone: 'America/Sao_Paulo'
                 });
 
-                await this.notificacaoService.sendPush(
+                // Envia notificação
+                const resultado = await this.notificacaoService.sendPush(
                     tokens,
                     "⏰ LEMBRETE DE VISITA!",
                     `Você tem visita agendada para ${horaFormatada} em ${imovel.titulo}`,
@@ -378,9 +402,26 @@ export class AgendamentoService {
                         url: '/agendamentos'
                     }
                 );
+
+                if (resultado.success) {
+                    // Marca como enviado
+                    await this.agendamentoModel.updateOne(
+                        { _id: agendamento._id },
+                        {
+                            $set: {
+                                lembreteEnviado: true,
+                                dataLembreteEnviado: new Date()
+                            }
+                        }
+                    );
+
+                    this.logger.log(`✅ Lembrete enviado para ${corretor.nome} - ${horaFormatada}`);
+                } else {
+                    this.logger.error(`❌ Falha ao enviar lembrete para ${corretor.nome}: ${resultado.message}`);
+                }
             }
         } catch (error) {
-            console.error('❌ Erro ao enviar lembretes:', error);
+            this.logger.error('❌ Erro ao enviar lembretes:', error);
         }
     }
 

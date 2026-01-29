@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { Empresa } from 'src/empresa/schemas/empresa.schema';
+import { Usuario } from 'src/usuario/schemas/usuario.schema';
 
 export type ImovelDocument = Imovel & Document;
 
@@ -22,26 +23,21 @@ export class Imovel {
     @Prop({ required: true })
     endereco: string;
 
-    // ⭐️ REMOVA OS CAMPOS ANTIGOS DE valor E aluguel
-    // ⭐️ ADICIONE OS NOVOS CAMPOS BOOLEANOS
     @Prop({ default: false })
     para_venda: boolean;
 
     @Prop({ default: false })
     para_aluguel: boolean;
 
-    // ⭐️ ADICIONE OS VALORES NUMÉRICOS (agora condicionais)
     @Prop({ required: false, default: null })
     valor_venda?: number;
 
     @Prop({ required: false, default: null })
     valor_aluguel?: number;
 
-    // === CAMPOS OBRIGATÓRIOS DO PASSO 1 ===
     @Prop({ default: false })
     disponivel: boolean;
 
-    // === CAMPOS OPCIONAIS DO PASSO 2 ===
     @Prop({ required: false, default: null })
     cidade?: string;
 
@@ -66,12 +62,14 @@ export class Imovel {
     @Prop({ default: false })
     garagem: boolean;
 
-    // === CAMPOS DE RELACIONAMENTO/SISTEMA ===
     @Prop({ type: [String], default: [] })
     fotos: string[];
 
     @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true })
     proprietario: Types.ObjectId;
+
+    @Prop({ type: Types.ObjectId, ref: 'Usuario', required: false }) // ⭐️ NOVO: Corretor responsável
+    corretor?: Types.ObjectId;
 
     @Prop({ type: Types.ObjectId, ref: Empresa.name, required: true })
     empresa: Types.ObjectId;
