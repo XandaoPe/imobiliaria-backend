@@ -11,6 +11,13 @@ export enum PerfisEnum {
     SUPORTE = 'SUPORTE',
 }
 
+export enum NivelUsuario {
+    JUNIOR = 'JUNIOR',
+    PLENO = 'PLENO',
+    SENIOR = 'SENIOR',
+    ESPECIAL = 'ESPECIAL',
+}
+
 @Schema({ timestamps: true })
 export class Usuario {
 
@@ -34,11 +41,42 @@ export class Usuario {
 
     @Prop({ type: [String], default: [] })
     pushToken: string[];
+
+    @Prop({
+        enum: NivelUsuario,
+        default: NivelUsuario.JUNIOR
+    })
+    nivel?: NivelUsuario;
+
+    @Prop({ default: 0 })
+    percentualComissaoPadrao?: number;
+
+    @Prop({ default: 0 })
+    metaMensal?: number;
+
+    @Prop({ default: 0 })
+    comissaoAcumulada: number;
+
+    @Prop({
+        type: String,
+        validate: {
+            validator: function (v: string) {
+                if (!v) return true;
+                return /^\d{4}-\d{2}-\d{2}$/.test(v);
+            },
+            message: 'dataAdmissao deve estar no formato YYYY-MM-DD'
+        }
+    })
+    dataAdmissao?: string;
+
+    @Prop({ default: true })
+    ativoFinanceiro: boolean;
 }
 
 export const UsuarioSchema = SchemaFactory.createForClass(Usuario);
 
 UsuarioSchema.index({ email: 1, empresa: 1 }, { unique: true });
+UsuarioSchema.index({ empresa: 1, perfil: 1, ativoFinanceiro: 1 });
 
 // 2. 🖥️ Configuração de Serialização (toJSON)
 UsuarioSchema.set('toJSON', {
@@ -64,3 +102,4 @@ UsuarioSchema.set('toJSON', {
         return transformed;
     },
 });
+

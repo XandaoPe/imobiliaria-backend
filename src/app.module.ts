@@ -25,6 +25,7 @@ import { NegociacaoModule } from './negociacao/negociacao.module';
 import { FinanceiroModule } from './financeiro/financeiro.module';
 import { ConfiguracaoModule } from './configuracao/configuracao.module';
 import { TasksModule } from './tasks/tasks.module';
+import { ComissaoModule } from './comissoes/comissao.module';
 
 @Module({
   imports: [
@@ -66,7 +67,9 @@ import { TasksModule } from './tasks/tasks.module';
     NegociacaoModule,
     FinanceiroModule,
     ConfiguracaoModule,
+    ComissaoModule,
   ],
+  
   controllers: [AppController],
   providers: [AppService],
 })

@@ -100,6 +100,27 @@ export class Financeiro {
 
     @Prop()
     observacoes?: string;
+
+    @Prop({ default: false })
+    comissoesDistribuidas: boolean;
+
+    @Prop({
+        type: {
+            dataDistribuicao: String,
+            distribuidoPor: { type: Types.ObjectId, ref: 'Usuario' },
+            metodoCalculo: String,
+            totalComissoes: { type: Number, default: 0 },
+            observacao: String,
+        },
+        _id: false,
+    })
+    distribuicaoComissao?: {
+        dataDistribuicao?: string;
+        distribuidoPor?: Types.ObjectId;
+        metodoCalculo?: string;
+        totalComissoes: number;
+        observacao?: string;
+    };
 }
 
 export const FinanceiroSchema = SchemaFactory.createForClass(Financeiro);
@@ -108,3 +129,5 @@ export const FinanceiroSchema = SchemaFactory.createForClass(Financeiro);
 FinanceiroSchema.index({ empresa: 1, status: 1 });
 FinanceiroSchema.index({ negociacao: 1 });
 FinanceiroSchema.index({ dataVencimento: 1 });
+FinanceiroSchema.index({ comissoesDistribuidas: 1 });
+FinanceiroSchema.index({ 'distribuicaoComissao.distribuidoPor': 1 });
