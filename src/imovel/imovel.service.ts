@@ -54,7 +54,7 @@ export class ImovelService {
             {
                 $match: { empresa: empresaObjectId }
             },
-            // ⭐️ CORREÇÃO: Converte proprietario string para ObjectId
+            // ⭐️ Converte IDs para ObjectId quando necessário
             {
                 $addFields: {
                     proprietarioObjectId: {
@@ -64,7 +64,6 @@ export class ImovelService {
                             else: "$proprietario"
                         }
                     },
-                    // ⭐️ NOVO: Converte corretor string para ObjectId
                     corretorObjectId: {
                         $cond: {
                             if: { $eq: [{ $type: "$corretor" }, "string"] },
@@ -74,6 +73,7 @@ export class ImovelService {
                     }
                 }
             },
+            // ⭐️ Lookups (traz os dados relacionados)
             {
                 $lookup: {
                     from: 'clientes',
@@ -82,7 +82,6 @@ export class ImovelService {
                     as: 'proprietario_info',
                 },
             },
-            // ⭐️ NOVO: Lookup para o corretor
             {
                 $lookup: {
                     from: 'usuarios',
@@ -99,20 +98,41 @@ export class ImovelService {
                     as: 'empresa_info',
                 },
             },
-            { $unwind: '$empresa_info' },
+            // ⭐️ Desestrutura (unwind) os arrays
+            { $unwind: { path: '$empresa_info', preserveNullAndEmptyArrays: false } },
             { $unwind: { path: '$proprietario_info', preserveNullAndEmptyArrays: true } },
-            { $unwind: { path: '$corretor_info', preserveNullAndEmptyArrays: true } }, // ⭐️ NOVO
+            { $unwind: { path: '$corretor_info', preserveNullAndEmptyArrays: true } },
         ];
 
-        // Filtro de Status
+        // ⭐️ 1. Primeiro: Filtro de Status (se aplicável)
         if (status) {
             const isDisponivel = status.toUpperCase() === 'DISPONIVEL';
-            pipeline.push({ $match: { disponivel: isDisponivel } });
+            pipeline.push({
+                $match: {
+                    disponivel: isDisponivel
+                }
+            });
         }
 
-        // Busca Textual
+        // ⭐️ 2. Depois: Busca Textual (DEPOIS dos lookups!)
         if (search) {
             const regex = new RegExp(search, 'i');
+
+            // ⭐️ MELHORIA: Cria campos seguros para busca
+            pipeline.push({
+                $addFields: {
+                    proprietario_nome_safe: {
+                        $ifNull: ["$proprietario_info.nome", ""]
+                    },
+                    corretor_nome_safe: {
+                        $ifNull: ["$corretor_info.nome", ""]
+                    },
+                    corretor_email_safe: {
+                        $ifNull: ["$corretor_info.email", ""]
+                    }
+                }
+            });
+
             pipeline.push({
                 $match: {
                     $or: [
@@ -121,14 +141,15 @@ export class ImovelService {
                         { cidade: { $regex: regex } },
                         { descricao: { $regex: regex } },
                         { 'empresa_info.nome': { $regex: regex } },
-                        { 'corretor_info.nome': { $regex: regex } }, // ⭐️ NOVO: busca por nome do corretor
-                        { 'corretor_info.email': { $regex: regex } }, // ⭐️ NOVO: busca por email do corretor
+                        { 'proprietario_nome_safe': { $regex: regex } }, // ⭐️ Campo seguro!
+                        { 'corretor_nome_safe': { $regex: regex } },
+                        { 'corretor_email_safe': { $regex: regex } },
                     ],
                 },
             });
         }
 
-        // Projeta os dados
+        // ⭐️ 3. Finalmente: Projeção (formata saída)
         pipeline.push({
             $project: {
                 titulo: 1,
@@ -151,7 +172,7 @@ export class ImovelService {
                 empresa: '$empresa_info',
                 proprietario: {
                     $cond: {
-                        if: { $ifNull: ["$proprietario_info", false] },
+                        if: { $ne: ["$proprietario_info", null] },
                         then: {
                             _id: { $toString: "$proprietario_info._id" },
                             nome: "$proprietario_info.nome"
@@ -159,10 +180,9 @@ export class ImovelService {
                         else: "$proprietario"
                     }
                 },
-                // ⭐️ NOVO: Projeta o corretor
                 corretor: {
                     $cond: {
-                        if: { $ifNull: ["$corretor_info", false] },
+                        if: { $ne: ["$corretor_info", null] },
                         then: {
                             _id: { $toString: "$corretor_info._id" },
                             nome: "$corretor_info.nome",
@@ -171,11 +191,16 @@ export class ImovelService {
                         },
                         else: "$corretor"
                     }
-                }
+                }                
             }
         });
 
         const result = await this.imovelModel.aggregate(pipeline).exec();
+
+        if (search && result.length > 0) {
+            console.log(`📋 Exemplo de proprietário encontrado:`, result[0].proprietario?.nome);
+        }
+
         return result;
     }
 
@@ -197,7 +222,6 @@ export class ImovelService {
                     as: 'proprietario_info',
                 },
             },
-            // ⭐️ NOVO: Lookup para corretor na busca pública
             {
                 $lookup: {
                     from: 'usuarios',
@@ -208,7 +232,7 @@ export class ImovelService {
             },
             { $unwind: '$empresa_info' },
             { $unwind: { path: '$proprietario_info', preserveNullAndEmptyArrays: true } },
-            { $unwind: { path: '$corretor_info', preserveNullAndEmptyArrays: true } }, // ⭐️ NOVO
+            { $unwind: { path: '$corretor_info', preserveNullAndEmptyArrays: true } },
             {
                 $match: {
                     disponivel: true,
@@ -218,6 +242,8 @@ export class ImovelService {
 
         if (search) {
             const regex = new RegExp(search, 'i');
+
+            // ⭐️ SOLUÇÃO: Em vez de adicionar campos, use condicional no $or
             pipeline.push({
                 $match: {
                     $or: [
@@ -226,7 +252,26 @@ export class ImovelService {
                         { endereco: { $regex: regex } },
                         { descricao: { $regex: regex } },
                         { 'empresa_info.nome': { $regex: regex } },
-                        { 'corretor_info.nome': { $regex: regex } }, // ⭐️ NOVO
+                        // ⭐️ BUSCA SEGURA: Só busca se proprietario_info existir
+                        {
+                            $and: [
+                                { 'proprietario_info': { $ne: null } },
+                                { 'proprietario_info.nome': { $regex: regex } }
+                            ]
+                        },
+                        // ⭐️ BUSCA SEGURA: Só busca se corretor_info existir
+                        {
+                            $and: [
+                                { 'corretor_info': { $ne: null } },
+                                { 'corretor_info.nome': { $regex: regex } }
+                            ]
+                        },
+                        {
+                            $and: [
+                                { 'corretor_info': { $ne: null } },
+                                { 'corretor_info.email': { $regex: regex } }
+                            ]
+                        },
                     ],
                 },
             });
@@ -254,26 +299,26 @@ export class ImovelService {
                 empresa: '$empresa_info',
                 proprietario: {
                     $cond: {
-                        if: { $eq: [{ $type: "$proprietario_info" }, "object"] },
+                        if: { $ne: ["$proprietario_info", null] },
                         then: {
-                            _id: "$proprietario_info._id",
+                            _id: { $toString: "$proprietario_info._id" },
                             nome: "$proprietario_info.nome"
                         },
                         else: "$proprietario"
                     }
                 },
-                // ⭐️ NOVO: Projeta o corretor na busca pública
                 corretor: {
                     $cond: {
-                        if: { $eq: [{ $type: "$corretor_info" }, "object"] },
+                        if: { $ne: ["$corretor_info", null] },
                         then: {
-                            _id: "$corretor_info._id",
+                            _id: { $toString: "$corretor_info._id" },
                             nome: "$corretor_info.nome",
                             email: "$corretor_info.email"
                         },
                         else: "$corretor"
                     }
                 }
+                // ⭐️ NÃO inclua exclusões aqui
             }
         });
 
