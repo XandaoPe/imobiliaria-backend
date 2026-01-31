@@ -96,6 +96,9 @@ export class Negociacao {
 
     @Prop({ unique: true })
     codigo: string;
+
+    @Prop({ type: Types.ObjectId, ref: 'Usuario', required: false })
+    vendedor?: Types.ObjectId;
 }
 
 export const NegociacaoSchema = SchemaFactory.createForClass(Negociacao);

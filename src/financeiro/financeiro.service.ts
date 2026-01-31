@@ -78,7 +78,7 @@ export class FinanceiroService {
                 .skip(skip)
                 .limit(limit)
                 .populate('cliente', 'nome telefone')
-                // ALTERAÇÃO AQUI: Deep Populate para pegar o proprietário do imóvel
+                .populate('comissionado', 'nome email')
                 .populate({
                     path: 'imovel',
                     select: 'titulo endereco cidade proprietario codigo',
@@ -343,7 +343,6 @@ export class FinanceiroService {
                 }
             }
 
-            // 3. COMISSÕES (NOVO) - Criadas na data atual
             if (comissoes && comissoes.length > 0) {
                 comissoes.forEach((comissao: any) => {
                     lancamentos.push({
@@ -351,14 +350,15 @@ export class FinanceiroService {
                         negociacao: negociacaoId,
                         negociacaoCodigo: codNeg,
                         imovel: imovelId,
-                        cliente: new Types.ObjectId(comissao.usuarioId), // ID do USUÁRIO (corretor)
+                        cliente: proprietarioId, // Mantém o proprietário como cliente
+                        comissionado: new Types.ObjectId(comissao.usuarioId), // NOVO CAMPO
                         tipo: TipoLancamento.DESPESA,
-                        categoria: CategoriaLancamento.COMISSAO, // AGORA DEVE EXISTIR
+                        categoria: CategoriaLancamento.COMISSAO,
                         valor: Number(comissao.valorCalculado),
-                        dataVencimento: dataAtualStr, // Comissão vence na data atual
+                        dataVencimento: dataAtualStr,
                         status: StatusFinanceiro.PENDENTE,
-                        descricao: `Comissão ${negociacao.tipo} - ${comissao.usuarioNome}`,
-                        observacoes: `Regra: ${comissao.regraNome} (${comissao.percentual}%)`
+                        descricao: `Comissão ${negociacao.tipo} - ${comissao.usuarioNome}`, 
+                        observacoes: `Regra: ${comissao.regraNome} (${comissao.percentual}%)` 
                     });
                 });
             }

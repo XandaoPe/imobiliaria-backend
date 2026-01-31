@@ -81,6 +81,7 @@ export class NegociacaoService {
         const negociacao = await this.negociacaoModel
             .findOne({ _id: id, empresa: new Types.ObjectId(empresaId) })
             .populate('cliente', 'nome telefone email endereco cidade')
+            .populate('vendedor', 'nome email')
             .populate({
                 path: 'imovel',
                 select: 'titulo endereco cidade proprietario codigo',

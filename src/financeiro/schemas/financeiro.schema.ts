@@ -37,10 +37,6 @@ export class Financeiro {
     @Prop({ type: Types.ObjectId, ref: 'Imovel', required: true })
     imovel: Types.ObjectId;
 
-    /**
-     * No caso de RECEITA: É o locatário/comprador
-     * No caso de DESPESA/REPASSE: É o proprietário do imóvel
-     */
     @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true })
     cliente: Types.ObjectId;
 
@@ -122,6 +118,9 @@ export class Financeiro {
         totalComissoes: number;
         observacao?: string;
     };
+
+    @Prop({ type: Types.ObjectId, ref: 'Usuario', required: false })
+    comissionado?: Types.ObjectId; // Para lançamentos de comissão
 }
 
 export const FinanceiroSchema = SchemaFactory.createForClass(Financeiro);

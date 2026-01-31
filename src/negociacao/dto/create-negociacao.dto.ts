@@ -37,4 +37,8 @@ export class CreateNegociacaoDto {
     @IsArray()
     @IsOptional()
     historico?: any[]; // Para aceitar o array de histórico enviado pelo frontend
+
+    @IsMongoId()
+    @IsOptional()
+    vendedor?: string; // ID do usuário/vendedor
 }
