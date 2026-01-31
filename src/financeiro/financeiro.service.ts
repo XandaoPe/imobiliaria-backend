@@ -233,7 +233,13 @@ export class FinanceiroService {
     async gerarFluxoFinanceiroFechamento(negociacao: any, imovel: any, financeiroData: any) {
         try {
             const lancamentos: any[] = [];
-            const { valorEntrada, qtdParcelas, valorParcela, diaVencimento } = financeiroData;
+            const {
+                valorEntrada,
+                qtdParcelas,
+                valorParcela,
+                diaVencimento,
+                comissoes = [] // NOVO: recebe as comissões
+            } = financeiroData;
 
             const empresaIdStr = negociacao.empresa.toString();
             const empresaId = new Types.ObjectId(negociacao.empresa);
@@ -260,6 +266,7 @@ export class FinanceiroService {
             // Data atual como string YYYY-MM-DD
             const dataAtualStr = new Date().toISOString().split('T')[0];
 
+            // 1. Entrada (se houver)
             if (Number(valorEntrada) > 0) {
                 lancamentos.push({
                     empresa: empresaId,
@@ -279,6 +286,7 @@ export class FinanceiroService {
                 });
             }
 
+            // 2. Parcelas e repasses
             const hoje = new Date();
             const anoAtual = hoje.getFullYear();
             const mesAtual = hoje.getMonth();
@@ -291,7 +299,7 @@ export class FinanceiroService {
                 // Criar data no fuso local
                 const dataVencimentoDate = new Date(anoAlvo, mesAjustado, diaEscolhido);
 
-                // Ajustar se o dia não existe (ex: 31 de fevereiro)
+                // Ajustar se o dia não existe
                 if (dataVencimentoDate.getMonth() !== mesAjustado) {
                     dataVencimentoDate.setDate(0); // Último dia do mês anterior
                 }
@@ -299,6 +307,7 @@ export class FinanceiroService {
                 // Converter para string YYYY-MM-DD
                 const dataVencimentoStr = dataVencimentoDate.toISOString().split('T')[0];
 
+                // Parcela do cliente
                 lancamentos.push({
                     empresa: empresaId,
                     negociacao: negociacaoId,
@@ -314,6 +323,7 @@ export class FinanceiroService {
                     descricao: `Parcela ${i}/${qtdParcelas} - ${negociacao.tipo}`,
                 });
 
+                // Repasse para proprietário
                 if (proprietarioId) {
                     const valorRepasse = Number(valorParcela) * (1 - taxaAdmDecimal);
                     lancamentos.push({
@@ -333,11 +343,33 @@ export class FinanceiroService {
                 }
             }
 
+            // 3. COMISSÕES (NOVO) - Criadas na data atual
+            if (comissoes && comissoes.length > 0) {
+                comissoes.forEach((comissao: any) => {
+                    lancamentos.push({
+                        empresa: empresaId,
+                        negociacao: negociacaoId,
+                        negociacaoCodigo: codNeg,
+                        imovel: imovelId,
+                        cliente: new Types.ObjectId(comissao.usuarioId), // ID do USUÁRIO (corretor)
+                        tipo: TipoLancamento.DESPESA,
+                        categoria: CategoriaLancamento.COMISSAO, // AGORA DEVE EXISTIR
+                        valor: Number(comissao.valorCalculado),
+                        dataVencimento: dataAtualStr, // Comissão vence na data atual
+                        status: StatusFinanceiro.PENDENTE,
+                        descricao: `Comissão ${negociacao.tipo} - ${comissao.usuarioNome}`,
+                        observacoes: `Regra: ${comissao.regraNome} (${comissao.percentual}%)`
+                    });
+                });
+            }
+
             console.log('=== DATAS CRIADAS ===');
             lancamentos.forEach((l, i) => {
                 console.log(`Lançamento ${i + 1}:`, {
-                    dataVencimento: l.dataVencimento, // Já é string
-                    descricao: l.descricao
+                    dataVencimento: l.dataVencimento,
+                    descricao: l.descricao,
+                    tipo: l.tipo,
+                    categoria: l.categoria
                 });
             });
 

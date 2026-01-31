@@ -188,13 +188,17 @@ export class NegociacaoService {
                 if (dadosFinanceiros.tipoNegocio) {
                     negociacao.tipo = dadosFinanceiros.tipoNegocio;
                 }
+
+                // Passa os dados financeiros COMPLETOS (incluindo comissões se existirem)
                 await this.financeiroService.gerarFluxoFinanceiroFechamento(
                     negociacao,
                     imovel,
-                    dadosFinanceiros
+                    dadosFinanceiros // Já contém comissões se enviadas pelo frontend
                 );
 
                 negociacao.valor_acordado = Number(dadosFinanceiros.valorTotal);
+
+                // Salva os dados financeiros completos, incluindo comissões
                 negociacao.dadosFinanceiros = {
                     valorTotal: Number(dadosFinanceiros.valorTotal),
                     valorEntrada: Number(dadosFinanceiros.valorEntrada || 0),
@@ -202,7 +206,11 @@ export class NegociacaoService {
                     valorParcela: Number(dadosFinanceiros.valorParcela),
                     diaVencimento: dadosFinanceiros.diaVencimento,
                     ajustePorcentagem: Number(dadosFinanceiros.ajustePorcentagem || 0),
-                    ajusteFixo: Number(dadosFinanceiros.ajusteFixo || 0)
+                    ajusteFixo: Number(dadosFinanceiros.ajusteFixo || 0),
+                    // Salva as comissões se existirem
+                    ...(dadosFinanceiros.comissoes && {
+                        comissoes: dadosFinanceiros.comissoes
+                    })
                 };
             } else {
                 throw new BadRequestException('Dados financeiros são obrigatórios para concluir a negociação.');

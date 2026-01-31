@@ -1,6 +1,44 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumber, IsString, IsEnum, IsOptional, IsDateString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString, IsEnum, IsOptional, IsDateString, IsArray, ValidateNested } from 'class-validator';
 import { TipoLancamento } from '../schemas/financeiro.schema';
+import { Type } from 'class-transformer';
+
+export class ComissaoDto {
+    @ApiProperty({ description: 'ID da regra de comissão' })
+    @IsString()
+    @IsNotEmpty()
+    regraId: string;
+
+    @ApiProperty({ description: 'ID do usuário (corretor)' })
+    @IsString()
+    @IsNotEmpty()
+    usuarioId: string;
+
+    @ApiProperty({ description: 'Nome do usuário' })
+    @IsString()
+    usuarioNome: string;
+
+    @ApiProperty({ description: 'Percentual da comissão' })
+    @IsNumber()
+    percentual: number;
+
+    @ApiPropertyOptional({ description: 'Valor fixo da comissão' })
+    @IsOptional()
+    @IsNumber()
+    valorFixo?: number;
+
+    @ApiProperty({ description: 'Valor calculado da comissão' })
+    @IsNumber()
+    valorCalculado: number;
+
+    @ApiProperty({ description: 'Tipo de cálculo' })
+    @IsString()
+    tipoCalculo: string;
+
+    @ApiProperty({ description: 'Nome da regra' })
+    @IsString()
+    regraNome: string;
+}
 
 export class CreateFinanceiroDto {
     @ApiProperty({ example: 'Aluguel Unidade 101' })
@@ -35,8 +73,15 @@ export class CreateFinanceiroDto {
     @IsString()
     imovel?: string;
 
-    @ApiPropertyOptional({ description: 'ID do Cliente vinculado' })
+    @ApiPropertyOptional({ description: 'ID do Cliente/Usuário vinculado' })
     @IsOptional()
     @IsString()
     cliente?: string;
+
+    @ApiPropertyOptional({ description: 'Lista de comissões para distribuição' })
+    @IsOptional()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => ComissaoDto)
+    comissoes?: ComissaoDto[];
 }
