@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsEnum, IsString, IsNumber, Min } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TipoLancamento } from '../schemas/financeiro.schema';
+import { TipoLancamento, CategoriaLancamento } from '../schemas/financeiro.schema';
 
 export class FinanceiroFiltrosDto {
     @ApiPropertyOptional({ description: 'Termo de busca' })
@@ -13,6 +13,11 @@ export class FinanceiroFiltrosDto {
     @IsOptional()
     @IsEnum(TipoLancamento)
     tipo?: TipoLancamento;
+
+    @ApiPropertyOptional({ enum: CategoriaLancamento })
+    @IsOptional()
+    @IsEnum(CategoriaLancamento)
+    categoria?: CategoriaLancamento;
 
     @ApiPropertyOptional({ example: 'PENDENTE' })
     @IsOptional()
@@ -29,7 +34,34 @@ export class FinanceiroFiltrosDto {
     @IsString()
     dataFim?: string;
 
-    // --- Novos campos para Paginação ---
+    // --- Novos campos para valor mínimo/máximo ---
+    @ApiPropertyOptional({ description: 'Valor mínimo' })
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    @Min(0)
+    valorMin?: number;
+
+    @ApiPropertyOptional({ description: 'Valor máximo' })
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    @Min(0)
+    valorMax?: number;
+
+    // --- Novos campos para Imóvel ---
+    @ApiPropertyOptional({ description: 'Código do Imóvel' })
+    @IsOptional()
+    @IsString()
+    imovelCodigo?: string;
+
+    // --- Novos campos para Negociação ---
+    @ApiPropertyOptional({ description: 'Código da Negociação' })
+    @IsOptional()
+    @IsString()
+    negociacaoCodigo?: string;
+
+    // --- Campos para Paginação ---
     @ApiPropertyOptional({ default: 1 })
     @IsOptional()
     @Type(() => Number)
@@ -43,5 +75,4 @@ export class FinanceiroFiltrosDto {
     @IsNumber()
     @Min(1)
     limit?: number = 10;
-    
 }

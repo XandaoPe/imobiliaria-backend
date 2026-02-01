@@ -7,6 +7,7 @@ import { Empresa, EmpresaDocument } from 'src/empresa/schemas/empresa.schema';
 import { CreateFinanceiroDto } from './dto/create-financeiro.dto';
 import { Cliente } from 'src/cliente/schemas/cliente.schema';
 import { ConfiguracaoService } from 'src/configuracao/configuracao.service';
+import { Imovel } from 'src/imovel/schemas/imovel.schema';
 
 @Injectable()
 export class FinanceiroService {
@@ -14,6 +15,7 @@ export class FinanceiroService {
         @InjectModel(Financeiro.name) private financeiroModel: Model<FinanceiroDocument>,
         @InjectModel(Empresa.name) private empresaModel: Model<EmpresaDocument>,
         @InjectModel(Cliente.name) private clienteModel: Model<any>,
+        @InjectModel(Imovel.name) private imovelModel: Model<any>,
         private readonly configService: ConfiguracaoService,
     ) { }
 
@@ -40,7 +42,21 @@ export class FinanceiroService {
     }
 
     async findAllByEmpresa(empresaId: string, filtros: FinanceiroFiltrosDto) {
-        const { page = 1, limit = 10, search, status, dataInicio, dataFim } = filtros;
+        const {
+            page = 1,
+            limit = 10,
+            search,
+            status,
+            tipo,
+            categoria, // NOVO: filtro por categoria
+            dataInicio,
+            dataFim,
+            valorMin,  // NOVO: filtro por valor mínimo
+            valorMax,  // NOVO: filtro por valor máximo
+            imovelCodigo, // NOVO: filtro por código do imóvel
+            negociacaoCodigo // NOVO: filtro por código da negociação
+        } = filtros;
+
         const skip = (page - 1) * limit;
 
         const query: FilterQuery<FinanceiroDocument> = {
@@ -48,14 +64,56 @@ export class FinanceiroService {
             status: { $ne: StatusFinanceiro.CANCELADO }
         };
 
+        // Filtro por Status (existente)
         if (status && status !== 'TODOS') {
             query.status = status;
         }
 
+        // NOVO: Filtro por Tipo
+        if (tipo) {
+            query.tipo = tipo;
+        }
+
+        // NOVO: Filtro por Categoria
+        if (categoria) {
+            query.categoria = categoria;
+        }
+
+        // Filtro por Data (existente)
         if (dataInicio || dataFim) {
             query.dataVencimento = this.criarFiltroDataString(dataInicio, dataFim);
         }
 
+        // NOVO: Filtro por Valor Mínimo/Máximo
+        if (valorMin !== undefined || valorMax !== undefined) {
+            query.valor = {};
+            if (valorMin !== undefined) {
+                query.valor.$gte = valorMin;
+            }
+            if (valorMax !== undefined) {
+                query.valor.$lte = valorMax;
+            }
+        }
+
+        // NOVO: Filtro por Código da Negociação
+        if (negociacaoCodigo) {
+            query.negociacaoCodigo = { $regex: negociacaoCodigo, $options: 'i' };
+        }
+
+        // NOVO: Filtro por Código do Imóvel (busca nos imóveis populados)
+        if (imovelCodigo) {
+            // Precisamos buscar os imóveis com esse código primeiro
+            const imoveis = await this.imovelModel.find({
+                empresa: new Types.ObjectId(empresaId),
+                codigo: { $regex: imovelCodigo, $options: 'i' }
+            }).select('_id').lean();
+
+            if (imoveis.length > 0) {
+                query.imovel = { $in: imoveis.map(i => i._id) };
+            }
+        }
+
+        // Filtro por Search (existente - busca em cliente, descrição e código da negociação)
         if (search) {
             const clientesEncontrados = await this.clienteModel.find({
                 nome: { $regex: search, $options: 'i' },
@@ -84,7 +142,7 @@ export class FinanceiroService {
                     select: 'titulo endereco cidade proprietario codigo',
                     populate: {
                         path: 'proprietario',
-                        model: 'Cliente', // Certifique-on de que este é o nome do model de clientes
+                        model: 'Cliente',
                         select: 'nome email telefone'
                     }
                 })

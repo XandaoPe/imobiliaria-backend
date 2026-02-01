@@ -7,13 +7,15 @@ import { FinanceiroPdfService } from './financeiro-pdf.service';
 import { Empresa, EmpresaSchema } from 'src/empresa/schemas/empresa.schema'; // ⭐️ Importar Schema da Empresa
 import { Cliente, ClienteSchema } from 'src/cliente/schemas/cliente.schema';
 import { ConfiguracaoModule } from 'src/configuracao/configuracao.module';
+import { Imovel, ImovelSchema } from 'src/imovel/schemas/imovel.schema';
 
 @Module({
     imports: [
         MongooseModule.forFeature([
             { name: Financeiro.name, schema: FinanceiroSchema },
             { name: Cliente.name, schema: ClienteSchema },
-            { name: Empresa.name, schema: EmpresaSchema }, // ⭐️ Adicionar aqui para o Service funcionar
+            { name: Empresa.name, schema: EmpresaSchema }, 
+            { name: Imovel.name, schema: ImovelSchema }, 
         ]),
         ConfiguracaoModule,
     ],
