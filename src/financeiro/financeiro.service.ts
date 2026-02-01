@@ -8,6 +8,7 @@ import { CreateFinanceiroDto } from './dto/create-financeiro.dto';
 import { Cliente } from 'src/cliente/schemas/cliente.schema';
 import { ConfiguracaoService } from 'src/configuracao/configuracao.service';
 import { Imovel } from 'src/imovel/schemas/imovel.schema';
+import { UpdateFinanceiroDto } from './dto/update-financeiro.dto';
 
 @Injectable()
 export class FinanceiroService {
@@ -511,6 +512,198 @@ export class FinanceiroService {
             console.error('Erro ao gerar fluxo financeiro:', error);
             throw new BadRequestException('Não foi possível gerar os lançamentos financeiros.');
         }
+    }
+
+    async findById(id: string, empresaId: string) {
+        const lancamento = await this.financeiroModel
+            .findOne({
+                _id: new Types.ObjectId(id),
+                empresa: new Types.ObjectId(empresaId)
+            })
+            .populate('cliente', 'nome telefone')
+            .populate('comissionado', 'nome email')
+            .populate({
+                path: 'imovel',
+                select: 'titulo endereco cidade proprietario codigo',
+                populate: {
+                    path: 'proprietario',
+                    model: 'Cliente',
+                    select: 'nome email telefone'
+                }
+            })
+            .lean();
+
+        if (!lancamento) {
+            throw new NotFoundException('Lançamento financeiro não encontrado.');
+        }
+
+        return lancamento;
+    }
+
+    async update(id: string, empresaId: string, updateDto: UpdateFinanceiroDto) {
+        // Verificar se o lançamento existe e pertence à empresa
+        const lancamentoExistente = await this.financeiroModel.findOne({
+            _id: new Types.ObjectId(id),
+            empresa: new Types.ObjectId(empresaId)
+        });
+
+        if (!lancamentoExistente) {
+            throw new NotFoundException('Lançamento financeiro não encontrado.');
+        }
+
+        // Validar restrições de edição
+        const restricoes = this.validarRestricoesEdicao(lancamentoExistente, updateDto);
+        if (!restricoes.podeEditar) {
+            throw new BadRequestException(restricoes.mensagem);
+        }
+
+        // Preparar dados para atualização
+        const updateData: any = { ...updateDto };
+
+        // Converter IDs de string para ObjectId se necessário
+        if (updateData.imovel && typeof updateData.imovel === 'string') {
+            updateData.imovel = new Types.ObjectId(updateData.imovel);
+        }
+
+        if (updateData.cliente && typeof updateData.cliente === 'string') {
+            updateData.cliente = new Types.ObjectId(updateData.cliente);
+        }
+
+        // Lógica para status PAGO
+        if (updateData.status === StatusFinanceiro.PAGO && !updateData.dataPagamento) {
+            updateData.dataPagamento = new Date().toISOString().split('T')[0];
+        }
+
+        // Se estiver alterando para PENDENTE e havia dataPagamento, remover
+        if (updateData.status === StatusFinanceiro.PENDENTE && updateData.dataPagamento) {
+            updateData.dataPagamento = undefined;
+            updateData.valorPago = undefined;
+        }
+
+        // Manter campos imutáveis
+        delete updateData.empresa;
+        delete updateData.negociacao;
+        delete updateData.negociacaoCodigo;
+        delete updateData.comissoesDistribuidas;
+        delete updateData.distribuicaoComissao;
+        delete updateData.createdAt;
+        delete updateData.updatedAt;
+
+        // Atualizar
+        const lancamentoAtualizado = await this.financeiroModel.findOneAndUpdate(
+            { _id: new Types.ObjectId(id), empresa: new Types.ObjectId(empresaId) },
+            { $set: updateData },
+            { new: true }
+        )
+            .populate('cliente', 'nome telefone')
+            .populate('comissionado', 'nome email')
+            .populate({
+                path: 'imovel',
+                select: 'titulo endereco cidade proprietario codigo',
+                populate: {
+                    path: 'proprietario',
+                    model: 'Cliente',
+                    select: 'nome email telefone'
+                }
+            })
+            .lean();
+
+        return lancamentoAtualizado;
+    }
+
+    async cancelarLancamento(id: string, empresaId: string) {
+        // Verificar se o lançamento existe
+        const lancamentoExistente = await this.financeiroModel.findOne({
+            _id: new Types.ObjectId(id),
+            empresa: new Types.ObjectId(empresaId)
+        });
+
+        if (!lancamentoExistente) {
+            throw new NotFoundException('Lançamento financeiro não encontrado.');
+        }
+
+        // Não permitir cancelar se já estiver cancelado
+        if (lancamentoExistente.status === StatusFinanceiro.CANCELADO) {
+            throw new BadRequestException('Este lançamento já está cancelado.');
+        }
+
+        // Não permitir cancelar se já estiver pago
+        if (lancamentoExistente.status === StatusFinanceiro.PAGO) {
+            throw new BadRequestException('Não é possível cancelar um lançamento já pago.');
+        }
+
+        // Verificar se é vinculado a negociação (restrições adicionais)
+        if (lancamentoExistente.negociacao) {
+            // Aqui você pode adicionar lógica adicional se necessário
+            // Por exemplo, verificar se a negociação ainda está ativa
+        }
+
+        // Atualizar para cancelado
+        const updateData = {
+            status: StatusFinanceiro.CANCELADO,
+            dataCancelamento: new Date().toISOString().split('T')[0]
+        };
+
+        const lancamentoCancelado = await this.financeiroModel.findOneAndUpdate(
+            { _id: new Types.ObjectId(id), empresa: new Types.ObjectId(empresaId) },
+            { $set: updateData },
+            { new: true }
+        )
+            .populate('cliente', 'nome telefone')
+            .populate('comissionado', 'nome email')
+            .populate({
+                path: 'imovel',
+                select: 'titulo endereco cidade proprietario codigo',
+                populate: {
+                    path: 'proprietario',
+                    model: 'Cliente',
+                    select: 'nome email telefone'
+                }
+            })
+            .lean();
+
+        return lancamentoCancelado;
+    }
+
+    private validarRestricoesEdicao(lancamentoExistente: any, updateDto: UpdateFinanceiroDto): { podeEditar: boolean; mensagem?: string } {
+        // Se tiver negociação vinculada, restrições são maiores
+        if (lancamentoExistente.negociacao) {
+            // Não permitir alterar tipo se for de negociação
+            if (updateDto.tipo && updateDto.tipo !== lancamentoExistente.tipo) {
+                return {
+                    podeEditar: false,
+                    mensagem: 'Não é possível alterar o tipo de um lançamento vinculado a uma negociação.'
+                };
+            }
+
+            // Não permitir alterar categoria se for de negociação (exceto para COMISSÃO)
+            if (updateDto.categoria && updateDto.categoria !== lancamentoExistente.categoria) {
+                return {
+                    podeEditar: false,
+                    mensagem: 'Não é possível alterar a categoria de um lançamento vinculado a uma negociação.'
+                };
+            }
+
+            // Não permitir alterar cliente/imovel se for de negociação
+            if (updateDto.cliente || updateDto.imovel) {
+                return {
+                    podeEditar: false,
+                    mensagem: 'Não é possível alterar cliente ou imóvel de um lançamento vinculado a uma negociação.'
+                };
+            }
+        }
+
+        // Se já tiver comissões distribuídas, não permitir alterar valor ou categoria COMISSAO
+        if (lancamentoExistente.comissoesDistribuidas && lancamentoExistente.categoria === 'COMISSAO') {
+            if (updateDto.valor || updateDto.categoria) {
+                return {
+                    podeEditar: false,
+                    mensagem: 'Não é possível alterar valor ou categoria de uma comissão já distribuída.'
+                };
+            }
+        }
+
+        return { podeEditar: true };
     }
     
     async registrarPagamento(id: string, empresaId: string, dadosBaixa?: any) {

@@ -2,7 +2,9 @@
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import {
     Controller, Get, Post, Body, Param, Patch, Req, UseGuards,
-    Query, HttpCode, HttpStatus, Res, NotFoundException
+    Query, HttpCode, HttpStatus, Res, NotFoundException,
+    Put,
+    Delete
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { FinanceiroService } from './financeiro.service';
@@ -14,6 +16,7 @@ import { FinanceiroFiltrosDto } from './dto/financeiro-filtros.dto';
 import { FinanceiroPdfService } from './financeiro-pdf.service';
 import { CreateFinanceiroDto } from './dto/create-financeiro.dto';
 import { Public } from 'src/auth/decorators/public.decorator';
+import { UpdateFinanceiroDto } from './dto/update-financeiro.dto';
 
 @ApiTags('Financeiro')
 @ApiBearerAuth('access-token')
@@ -38,7 +41,6 @@ export class FinanceiroController {
     @ApiOperation({ summary: 'Lista todos os lançamentos financeiros da empresa.' })
     async findAll(@Req() req, @Query() filtros: FinanceiroFiltrosDto) {
         const empresaId = req.user.empresa;
-        // Aqui o objeto 'filtros' já contém o campo 'search' vindo da query string
         return this.financeiroService.findAllByEmpresa(empresaId, filtros);
     }
 
@@ -81,6 +83,34 @@ export class FinanceiroController {
             'Content-Length': buffer.length,
         });
         res.end(buffer);
+    }
+
+    @Get(':id')
+    @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE, PerfisEnum.CORRETOR)
+    @ApiOperation({ summary: 'Busca um lançamento financeiro por ID.' })
+    async findOne(@Param('id') id: string, @Req() req) {
+        const empresaId = req.user.empresa;
+        return await this.financeiroService.findById(id, empresaId);
+    }
+
+    @Put(':id')
+    @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE, PerfisEnum.CORRETOR)
+    @ApiOperation({ summary: 'Atualiza um lançamento financeiro existente.' })
+    async update(
+        @Param('id') id: string,
+        @Body() updateDto: UpdateFinanceiroDto,
+        @Req() req
+    ) {
+        const empresaId = req.user.empresa;
+        return await this.financeiroService.update(id, empresaId, updateDto);
+    }
+
+    @Delete(':id')
+    @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE)
+    @ApiOperation({ summary: 'Cancela um lançamento financeiro.' })
+    async cancelar(@Param('id') id: string, @Req() req) {
+        const empresaId = req.user.empresa;
+        return await this.financeiroService.cancelarLancamento(id, empresaId);
     }
 
     @Patch(':id/pagar')

@@ -121,6 +121,18 @@ export class Financeiro {
 
     @Prop({ type: Types.ObjectId, ref: 'Usuario', required: false })
     comissionado?: Types.ObjectId; // Para lançamentos de comissão
+
+    @Prop({
+        type: String,
+        validate: {
+            validator: function (v: string) {
+                if (!v) return true;
+                return /^\d{4}-\d{2}-\d{2}$/.test(v);
+            },
+            message: 'dataCancelamento deve estar no formato YYYY-MM-DD'
+        }
+    })
+    dataCancelamento?: string;
 }
 
 export const FinanceiroSchema = SchemaFactory.createForClass(Financeiro);
