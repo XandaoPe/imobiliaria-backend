@@ -158,133 +158,196 @@ export class FinanceiroService {
         };
     }
 
-    async getResumoMensal(empresaId: string, filtros: FinanceiroFiltrosDto) {
-        const { dataInicio, dataFim, search } = filtros;
-        const hoje = new Date();
+    async getResumo(empresaId: string, filtros: FinanceiroFiltrosDto) {
+        const {
+            status,
+            tipo,
+            categoria,
+            dataInicio,
+            dataFim,
+            valorMin,
+            valorMax,
+            imovelCodigo,
+            negociacaoCodigo,
+            search
+        } = filtros;
 
         const matchFiltro: any = {
             empresa: new Types.ObjectId(empresaId),
             status: { $ne: StatusFinanceiro.CANCELADO }
         };
 
+        // Aplicar os mesmos filtros da listagem
+        if (status && status !== 'TODOS') {
+            matchFiltro.status = status;
+        }
+
+        if (tipo) {
+            matchFiltro.tipo = tipo;
+        }
+
+        if (categoria) {
+            matchFiltro.categoria = categoria;
+        }
+
+        // Filtro por Data
         if (dataInicio || dataFim) {
             matchFiltro.dataVencimento = this.criarFiltroDataString(dataInicio, dataFim);
         }
 
+        // Filtro por Valor
+        if (valorMin !== undefined || valorMax !== undefined) {
+            matchFiltro.valor = {};
+            if (valorMin !== undefined) {
+                matchFiltro.valor.$gte = valorMin;
+            }
+            if (valorMax !== undefined) {
+                matchFiltro.valor.$lte = valorMax;
+            }
+        }
+
+        // Filtro por Código da Negociação
+        if (negociacaoCodigo) {
+            matchFiltro.negociacaoCodigo = { $regex: negociacaoCodigo, $options: 'i' };
+        }
+
+        // Filtro por Código do Imóvel
+        if (imovelCodigo) {
+            const imoveis = await this.imovelModel.find({
+                empresa: new Types.ObjectId(empresaId),
+                codigo: { $regex: imovelCodigo, $options: 'i' }
+            }).select('_id').lean();
+
+            if (imoveis.length > 0) {
+                matchFiltro.imovel = { $in: imoveis.map(i => i._id) };
+            }
+        }
+
+        // Filtro por Search
         if (search) {
-            const clientes = await this.clienteModel.find({
+            const clientesEncontrados = await this.clienteModel.find({
                 nome: { $regex: search, $options: 'i' },
                 empresa: new Types.ObjectId(empresaId)
             }).select('_id').lean();
 
+            const idsClientes = clientesEncontrados.map(c => c._id);
+
             matchFiltro.$or = [
                 { descricao: { $regex: search, $options: 'i' } },
                 { negociacaoCodigo: { $regex: search, $options: 'i' } },
-                { cliente: { $in: clientes.map(c => c._id) } }
+                { cliente: { $in: idsClientes } }
             ];
         }
 
-        const totaisGerais = await this.financeiroModel.aggregate([
+        const pipeline = [
             { $match: matchFiltro },
             {
-                $group: {
-                    _id: null,
-                    receitas: {
-                        $sum: {
-                            $cond: [
-                                { $eq: ["$tipo", TipoLancamento.RECEITA] },
-                                { $ifNull: ["$valorPago", "$valor"] },
-                                0
-                            ]
-                        }
-                    },
-                    despesas: {
-                        $sum: {
-                            $cond: [
-                                { $eq: ["$tipo", TipoLancamento.DESPESA] },
-                                "$valor",
-                                0
-                            ]
-                        }
-                    },
-                    pendentes: {
-                        $sum: {
-                            $cond: [
-                                {
-                                    $and: [
-                                        { $eq: ["$status", StatusFinanceiro.PENDENTE] },
-                                        { $eq: ["$tipo", TipoLancamento.RECEITA] }
-                                    ]
+                $facet: {
+                    // Totais gerais
+                    totais: [
+                        {
+                            $group: {
+                                _id: null,
+                                receitas: {
+                                    $sum: {
+                                        $cond: [
+                                            { $eq: ["$tipo", TipoLancamento.RECEITA] },
+                                            "$valor",
+                                            0
+                                        ]
+                                    }
                                 },
-                                "$valor",
-                                0
-                            ]
+                                despesas: {
+                                    $sum: {
+                                        $cond: [
+                                            { $eq: ["$tipo", TipoLancamento.DESPESA] },
+                                            "$valor",
+                                            0
+                                        ]
+                                    }
+                                },
+                                receitasPagas: {
+                                    $sum: {
+                                        $cond: [
+                                            {
+                                                $and: [
+                                                    { $eq: ["$tipo", TipoLancamento.RECEITA] },
+                                                    { $eq: ["$status", StatusFinanceiro.PAGO] }
+                                                ]
+                                            },
+                                            "$valor",
+                                            0
+                                        ]
+                                    }
+                                },
+                                despesasPagas: {
+                                    $sum: {
+                                        $cond: [
+                                            {
+                                                $and: [
+                                                    { $eq: ["$tipo", TipoLancamento.DESPESA] },
+                                                    { $eq: ["$status", StatusFinanceiro.PAGO] }
+                                                ]
+                                            },
+                                            "$valor",
+                                            0
+                                        ]
+                                    }
+                                },
+                                receitasPendentes: {
+                                    $sum: {
+                                        $cond: [
+                                            {
+                                                $and: [
+                                                    { $eq: ["$tipo", TipoLancamento.RECEITA] },
+                                                    { $eq: ["$status", StatusFinanceiro.PENDENTE] }
+                                                ]
+                                            },
+                                            "$valor",
+                                            0
+                                        ]
+                                    }
+                                },
+                                despesasPendentes: {
+                                    $sum: {
+                                        $cond: [
+                                            {
+                                                $and: [
+                                                    { $eq: ["$tipo", TipoLancamento.DESPESA] },
+                                                    { $eq: ["$status", StatusFinanceiro.PENDENTE] }
+                                                ]
+                                            },
+                                            "$valor",
+                                            0
+                                        ]
+                                    }
+                                }
+                            }
                         }
-                    }
+                    ]
                 }
             }
-        ]);
+        ];
 
-        const resumoCards = totaisGerais[0] || { receitas: 0, despesas: 0, pendentes: 0 };
-
-        let matchGrafico = { ...matchFiltro };
-        if (!dataInicio && !dataFim) {
-            const seisMesesAtras = new Date();
-            seisMesesAtras.setMonth(hoje.getMonth() - 6);
-            seisMesesAtras.setDate(1);
-            matchGrafico.dataVencimento = { ...matchGrafico.dataVencimento, $gte: seisMesesAtras };
-        }
-
-        const dadosGraficoRaw = await this.financeiroModel.aggregate([
-            { $match: matchGrafico },
-            {
-                $group: {
-                    _id: {
-                        mes: { $month: { $dateFromString: { dateString: "$dataVencimento" } } },
-                        ano: { $year: { $dateFromString: { dateString: "$dataVencimento" } } },
-                        tipo: "$tipo"
-                    },
-                    total: { $sum: "$valor" },
-                    pago: {
-                        $sum: { $cond: [{ $eq: ["$status", StatusFinanceiro.PAGO] }, "$valor", 0] }
-                    }
-                }
-            },
-            { $sort: { "_id.ano": 1, "_id.mes": 1, dataVencimento: 1 } }
-        ]);
-
-        const mesesNomes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-        const chartMap = new Map();
-
-        if (!dataInicio || !dataFim) {
-            for (let i = -3; i <= 2; i++) {
-                const d = new Date();
-                d.setMonth(hoje.getMonth() + i);
-                const m = d.getMonth() + 1;
-                const a = d.getFullYear();
-                chartMap.set(`${m}-${a}`, { mes: mesesNomes[m - 1], recebido: 0, pago: 0, pendente: 0 });
-            }
-        }
-
-        dadosGraficoRaw.forEach(item => {
-            const chave = `${item._id.mes}-${item._id.ano}`;
-            if (!chartMap.has(chave)) {
-                chartMap.set(chave, { mes: mesesNomes[item._id.mes - 1], recebido: 0, pago: 0, pendente: 0 });
-            }
-            const mesData = chartMap.get(chave);
-            if (item._id.tipo === TipoLancamento.RECEITA) {
-                mesData.recebido += item.pago;
-                mesData.pendente += (item.total - item.pago);
-            } else {
-                mesData.pago += item.total;
-            }
-        });
+        const resultado = await this.financeiroModel.aggregate(pipeline);
+        const totais = resultado[0]?.totais[0] || {
+            receitas: 0,
+            despesas: 0,
+            receitasPagas: 0,
+            despesasPagas: 0,
+            receitasPendentes: 0,
+            despesasPendentes: 0
+        };
 
         return {
-            receitas: resumoCards.receitas,
-            despesas: resumoCards.despesas,
-            pendentes: resumoCards.pendentes,
-            chartData: Array.from(chartMap.values())
+            receitas: totais.receitasPagas,
+            despesas: totais.despesasPagas,
+            pendentes: totais.receitasPendentes,
+            // Retornando dados extras para cálculo dos cards
+            receitasBruto: totais.receitas,
+            despesasBruto: totais.despesas,
+            receitasPendentes: totais.receitasPendentes,
+            despesasPendentes: totais.despesasPendentes
         };
     }
 

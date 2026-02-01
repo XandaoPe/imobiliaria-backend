@@ -47,7 +47,7 @@ export class FinanceiroController {
     @ApiOperation({ summary: 'Retorna o resumo filtrado e dados para o gráfico.' })
     async getResumo(@Req() req, @Query() filtros: FinanceiroFiltrosDto) {
         const empresaId = req.user.empresa;
-        return await this.financeiroService.getResumoMensal(empresaId, filtros);
+        return await this.financeiroService.getResumo(empresaId, filtros);
     }
 
     @Get('validar/:id')
