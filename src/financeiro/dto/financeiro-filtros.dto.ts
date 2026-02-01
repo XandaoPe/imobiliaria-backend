@@ -14,15 +14,21 @@ export class FinanceiroFiltrosDto {
     @IsEnum(TipoLancamento)
     tipo?: TipoLancamento;
 
-    @ApiPropertyOptional({ enum: CategoriaLancamento })
-    @IsOptional()
-    @IsEnum(CategoriaLancamento)
-    categoria?: CategoriaLancamento;
-
-    @ApiPropertyOptional({ example: 'PENDENTE' })
+    @ApiPropertyOptional({
+        description: 'Status (pode ser múltiplo, separado por vírgula)',
+        example: 'PENDENTE,PAGO'
+    })
     @IsOptional()
     @IsString()
     status?: string;
+
+    @ApiPropertyOptional({
+        description: 'Categoria (pode ser múltipla, separada por vírgula)',
+        example: 'COMISSAO,REPASSE'
+    })
+    @IsOptional()
+    @IsString()
+    categoria?: string;
 
     @ApiPropertyOptional()
     @IsOptional()
@@ -34,7 +40,6 @@ export class FinanceiroFiltrosDto {
     @IsString()
     dataFim?: string;
 
-    // --- Novos campos para valor mínimo/máximo ---
     @ApiPropertyOptional({ description: 'Valor mínimo' })
     @IsOptional()
     @Type(() => Number)
@@ -49,19 +54,16 @@ export class FinanceiroFiltrosDto {
     @Min(0)
     valorMax?: number;
 
-    // --- Novos campos para Imóvel ---
     @ApiPropertyOptional({ description: 'Código do Imóvel' })
     @IsOptional()
     @IsString()
     imovelCodigo?: string;
 
-    // --- Novos campos para Negociação ---
     @ApiPropertyOptional({ description: 'Código da Negociação' })
     @IsOptional()
     @IsString()
     negociacaoCodigo?: string;
 
-    // --- Campos para Paginação ---
     @ApiPropertyOptional({ default: 1 })
     @IsOptional()
     @Type(() => Number)

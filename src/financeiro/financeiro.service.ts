@@ -48,13 +48,13 @@ export class FinanceiroService {
             search,
             status,
             tipo,
-            categoria, // NOVO: filtro por categoria
+            categoria,
             dataInicio,
             dataFim,
-            valorMin,  // NOVO: filtro por valor mínimo
-            valorMax,  // NOVO: filtro por valor máximo
-            imovelCodigo, // NOVO: filtro por código do imóvel
-            negociacaoCodigo // NOVO: filtro por código da negociação
+            valorMin,
+            valorMax,
+            imovelCodigo,
+            negociacaoCodigo
         } = filtros;
 
         const skip = (page - 1) * limit;
@@ -64,27 +64,33 @@ export class FinanceiroService {
             status: { $ne: StatusFinanceiro.CANCELADO }
         };
 
-        // Filtro por Status (existente)
+        // Filtro por Status (agora suporta múltiplos valores separados por vírgula)
         if (status && status !== 'TODOS') {
-            query.status = status;
+            const statusArray = status.split(',').map(s => s.trim()).filter(s => s !== '');
+            if (statusArray.length > 0) {
+                query.status = { $in: statusArray };
+            }
         }
 
-        // NOVO: Filtro por Tipo
+        // Filtro por Tipo
         if (tipo) {
             query.tipo = tipo;
         }
 
-        // NOVO: Filtro por Categoria
-        if (categoria) {
-            query.categoria = categoria;
+        // Filtro por Categoria (agora suporta múltiplos valores separados por vírgula)
+        if (categoria && categoria !== 'TODOS') {
+            const categoriaArray = categoria.split(',').map(c => c.trim()).filter(c => c !== '');
+            if (categoriaArray.length > 0) {
+                query.categoria = { $in: categoriaArray };
+            }
         }
 
-        // Filtro por Data (existente)
+        // Filtro por Data
         if (dataInicio || dataFim) {
             query.dataVencimento = this.criarFiltroDataString(dataInicio, dataFim);
         }
 
-        // NOVO: Filtro por Valor Mínimo/Máximo
+        // Filtro por Valor Mínimo/Máximo
         if (valorMin !== undefined || valorMax !== undefined) {
             query.valor = {};
             if (valorMin !== undefined) {
@@ -95,14 +101,13 @@ export class FinanceiroService {
             }
         }
 
-        // NOVO: Filtro por Código da Negociação
+        // Filtro por Código da Negociação
         if (negociacaoCodigo) {
             query.negociacaoCodigo = { $regex: negociacaoCodigo, $options: 'i' };
         }
 
-        // NOVO: Filtro por Código do Imóvel (busca nos imóveis populados)
+        // Filtro por Código do Imóvel
         if (imovelCodigo) {
-            // Precisamos buscar os imóveis com esse código primeiro
             const imoveis = await this.imovelModel.find({
                 empresa: new Types.ObjectId(empresaId),
                 codigo: { $regex: imovelCodigo, $options: 'i' }
@@ -113,7 +118,7 @@ export class FinanceiroService {
             }
         }
 
-        // Filtro por Search (existente - busca em cliente, descrição e código da negociação)
+        // Filtro por Search
         if (search) {
             const clientesEncontrados = await this.clienteModel.find({
                 nome: { $regex: search, $options: 'i' },
@@ -177,17 +182,25 @@ export class FinanceiroService {
             status: { $ne: StatusFinanceiro.CANCELADO }
         };
 
-        // Aplicar os mesmos filtros da listagem
+        // Filtro por Status (agora suporta múltiplos valores)
         if (status && status !== 'TODOS') {
-            matchFiltro.status = status;
+            const statusArray = status.split(',').map(s => s.trim()).filter(s => s !== '');
+            if (statusArray.length > 0) {
+                matchFiltro.status = { $in: statusArray };
+            }
         }
 
+        // Filtro por Tipo
         if (tipo) {
             matchFiltro.tipo = tipo;
         }
 
-        if (categoria) {
-            matchFiltro.categoria = categoria;
+        // Filtro por Categoria (agora suporta múltiplos valores)
+        if (categoria && categoria !== 'TODOS') {
+            const categoriaArray = categoria.split(',').map(c => c.trim()).filter(c => c !== '');
+            if (categoriaArray.length > 0) {
+                matchFiltro.categoria = { $in: categoriaArray };
+            }
         }
 
         // Filtro por Data
@@ -243,7 +256,6 @@ export class FinanceiroService {
             { $match: matchFiltro },
             {
                 $facet: {
-                    // Totais gerais
                     totais: [
                         {
                             $group: {
@@ -343,7 +355,6 @@ export class FinanceiroService {
             receitas: totais.receitasPagas,
             despesas: totais.despesasPagas,
             pendentes: totais.receitasPendentes,
-            // Retornando dados extras para cálculo dos cards
             receitasBruto: totais.receitas,
             despesasBruto: totais.despesas,
             receitasPendentes: totais.receitasPendentes,
