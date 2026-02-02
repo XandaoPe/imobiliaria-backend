@@ -1,11 +1,12 @@
 import {
   Controller, Get, Post, Body, Param, Delete, Put,
-  HttpCode, HttpStatus, UseGuards, Query, UseInterceptors, UploadedFile
+  HttpCode, HttpStatus, UseGuards, Query, UseInterceptors, UploadedFile,
+  Patch
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { EmpresaService } from './empresa.service';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
-import { UpdateEmpresaDto } from './dto/update-empresa.dto';
+import { ChavePixEmpresaDto, UpdateEmpresaDto } from './dto/update-empresa.dto';
 import { Empresa } from './schemas/empresa.schema';
 import { ApiBearerAuth, ApiOperation, ApiTags, ApiConsumes } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -86,4 +87,44 @@ export class EmpresaController {
   async uploadAssinatura(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
     return this.empresaService.updateAssinatura(id, file);
   }
+
+  @Patch(':id/chave-pix')
+  @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE)
+  @ApiOperation({ summary: 'Atualiza chave PIX da empresa' })
+  async atualizarChavePix(
+    @Param('id') id: string,
+    @Body() chavePixDto: ChavePixEmpresaDto
+  ) {
+    return this.empresaService.atualizarChavePix(id, chavePixDto);
+  }
+
+  @Delete(':id/chave-pix')
+  @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove chave PIX da empresa' })
+  async removerChavePix(@Param('id') id: string) {
+    return this.empresaService.removerChavePix(id);
+  }
+
+  @Post(':id/chaves-alternativas')
+  @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE)
+  @ApiOperation({ summary: 'Adiciona chave PIX alternativa' })
+  async adicionarChaveAlternativa(
+    @Param('id') id: string,
+    @Body('chave') chave: string
+  ) {
+    return this.empresaService.adicionarChavePixAlternativa(id, chave);
+  }
+
+  @Get(':id/chave-pix-preferencial')
+  @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE, PerfisEnum.CORRETOR)
+  @ApiOperation({ summary: 'Obtém chave PIX preferencial da empresa' })
+  async obterChavePixPreferencial(@Param('id') id: string) {
+    const chavePix = await this.empresaService.obterChavePixPreferencial(id);
+    return {
+      possuiChavePix: !!chavePix,
+      chavePix
+    };
+  }
+
 }

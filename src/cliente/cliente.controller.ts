@@ -1,5 +1,5 @@
 // src/cliente/cliente.controller.ts
-import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards, Req, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards, Req, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 
@@ -10,6 +10,7 @@ import { Cliente } from './schemas/cliente.schema';
 
 // ⭐️ NOVO: Importar o payload tipado (Ajuste o caminho conforme o seu projeto)
 import { UsuarioPayload } from 'src/auth/interfaces/usuario-payload.interface';
+import { ChavePixDto, ValidarChavePixDto } from 'src/shared/dto/chave-pix.dto';
 
 // ⭐️ NOVO: Interface para tipar o objeto Request injetado
 export interface RequestWithUser extends Request {
@@ -83,4 +84,56 @@ export class ClienteController {
     // Ajustei o retorno para Promise<any> para evitar outro erro de tipagem no momento.
     return this.clienteService.remove(id, empresaId);
   }
+
+  // 🔑 NOVO: Adicionar/atualizar chave PIX do cliente
+  @Post(':id/chave-pix')
+  @ApiOperation({ summary: 'Adiciona ou atualiza chave PIX do cliente' })
+  async adicionarChavePix(
+    @Param('id') id: string,
+    @Body() chavePixDto: ChavePixDto,
+    @Req() req: RequestWithUser
+  ) {
+    return this.clienteService.adicionarChavePix(id, chavePixDto, req.user.empresa);
+  }
+
+  // 🔑 NOVO: Remover chave PIX do cliente
+  @Delete(':id/chave-pix')
+  @ApiOperation({ summary: 'Remove chave PIX do cliente' })
+  @HttpCode(HttpStatus.OK)
+  async removerChavePix(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser
+  ) {
+    return this.clienteService.removerChavePix(id, req.user.empresa);
+  }
+
+  // 🔑 NOVO: Validar chave PIX do cliente
+  @Post(':id/validar-chave-pix')
+  @ApiOperation({ summary: 'Valida chave PIX do cliente com código de verificação' })
+  async validarChavePix(
+    @Param('id') id: string,
+    @Body() validarDto: ValidarChavePixDto,
+    @Req() req: RequestWithUser
+  ) {
+    return this.clienteService.validarChavePix(id, validarDto, req.user.empresa);
+  }
+
+  // 🔑 NOVO: Listar clientes com chave PIX válida
+  @Get('com-chave-pix/validada')
+  @ApiOperation({ summary: 'Lista todos os clientes com chave PIX validada' })
+  async listarComChavePixValida(@Req() req: RequestWithUser) {
+    return this.clienteService.listarComChavePix(req.user.empresa);
+  }
+
+  // 🔑 NOVO: Verificar se cliente tem chave PIX válida
+  @Get(':id/tem-chave-pix')
+  @ApiOperation({ summary: 'Verifica se o cliente possui chave PIX válida cadastrada' })
+  async temChavePixValida(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser
+  ) {
+    const temChave = await this.clienteService.temChavePix(id, req.user.empresa);
+    return { temChavePix: temChave };
+  }
+
 }

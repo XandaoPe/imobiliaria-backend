@@ -4,6 +4,14 @@ import { Document } from 'mongoose';
 
 export type EmpresaDocument = Empresa & Document;
 
+// Interface para chave PIX da empresa
+export interface ChavePixEmpresa {
+    tipo: 'CNPJ' | 'EMAIL' | 'TELEFONE' | 'CHAVE_ALEATORIA';
+    chave: string;
+    preferencial: boolean;
+    dataCadastro: string;
+}
+
 @Schema({ timestamps: true })
 export class Empresa {
     @Prop({ required: true, unique: true })
@@ -29,6 +37,48 @@ export class Empresa {
 
     @Prop({ default: true })
     ativa?: boolean;
+
+    // 🔑 NOVO: Campos para chave PIX da empresa
+    @Prop({
+        type: {
+            tipo: {
+                type: String,
+                enum: ['CNPJ', 'EMAIL', 'TELEFONE', 'CHAVE_ALEATORIA'],
+                default: 'CNPJ'
+            },
+            chave: { type: String, default: null },
+            preferencial: { type: Boolean, default: true },
+            dataCadastro: {
+                type: String,
+                default: function () {
+                    return new Date().toISOString().split('T')[0];
+                }
+            }
+        },
+        _id: false
+    })
+    chavePix?: ChavePixEmpresa;
+
+    @Prop({ type: [String], default: [] })
+    chavesPixAlternativas?: string[];
+
+    // 🔑 NOVO: Dados bancários para complemento
+    @Prop()
+    banco?: string;
+
+    @Prop()
+    agencia?: string;
+
+    @Prop()
+    conta?: string;
+
+    @Prop()
+    tipoConta?: string; // CORRENTE, POUPANÇA
+
 }
 
 export const EmpresaSchema = SchemaFactory.createForClass(Empresa);
+
+EmpresaSchema.index({ 'chavePix.chave': 1 }, { sparse: true });
+EmpresaSchema.index({ cnpj: 1 });
+EmpresaSchema.index({ nome: 1 });

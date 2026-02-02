@@ -5,6 +5,7 @@ import { ClienteService } from './cliente.service';
 import { ClienteController } from './cliente.controller';
 import { Cliente, ClienteSchema } from './schemas/cliente.schema';
 import { AuthModule } from '../auth/auth.module';
+import { SharedModule } from 'src/shared/shared.module';
 
 @Module({
   imports: [
@@ -14,13 +15,12 @@ import { AuthModule } from '../auth/auth.module';
         useFactory: () => {
           const schema = ClienteSchema;
           // 🔑 Multitenancy: CPF e Email são únicos DENTRO de cada empresa
-          schema.index({ cpf: 1, empresa: 1 }, { unique: true, sparse: true });
-          schema.index({ email: 1, empresa: 1 }, { unique: true, sparse: true });
           return schema;
         },
       },
     ]),
     AuthModule,
+    SharedModule,
   ],
   controllers: [ClienteController],
   providers: [ClienteService],

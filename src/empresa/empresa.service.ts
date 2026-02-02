@@ -2,9 +2,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Empresa, EmpresaDocument } from './schemas/empresa.schema';
+import { ChavePixEmpresa, Empresa, EmpresaDocument } from './schemas/empresa.schema';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
-import { UpdateEmpresaDto } from './dto/update-empresa.dto';
+import { ChavePixEmpresaDto, UpdateEmpresaDto } from './dto/update-empresa.dto';
 import { UploadService } from 'src/upload/upload.service';
 
 @Injectable()
@@ -113,4 +113,111 @@ export class EmpresaService {
     const result = await this.empresaModel.deleteMany({ _id: { $in: ids } }).exec();
     return { message: `${result.deletedCount} empresas removidas com sucesso` };
   }
+
+  // 🔑 NOVO: Método para atualizar chave PIX da empresa
+  async atualizarChavePix(empresaId: string, chavePixDto: ChavePixEmpresaDto): Promise<Empresa> {
+    const empresa = await this.findOne(empresaId);
+
+    if (!chavePixDto.chave) {
+      throw new BadRequestException('Chave PIX é obrigatória');
+    }
+
+    // Validar formato baseado no tipo
+    if (chavePixDto.tipo === 'CNPJ') {
+      const cnpjLimpo = chavePixDto.chave.replace(/\D/g, '');
+      if (cnpjLimpo.length !== 14) {
+        throw new BadRequestException('CNPJ deve ter 14 dígitos');
+      }
+      // Verificar se CNPJ bate com o cadastrado
+      if (cnpjLimpo !== empresa.cnpj.replace(/\D/g, '')) {
+        throw new BadRequestException('CNPJ da chave PIX deve ser o mesmo cadastrado na empresa');
+      }
+    }
+
+    const chavePixData: ChavePixEmpresa = {
+      tipo: chavePixDto.tipo || 'CNPJ',
+      chave: chavePixDto.tipo === 'CNPJ'
+        ? chavePixDto.chave!.replace(/\D/g, '') // Usando ! para indicar que não é null
+        : chavePixDto.chave!,
+      preferencial: chavePixDto.preferencial ?? true,
+      dataCadastro: new Date().toISOString().split('T')[0]
+    };
+
+    const empresaAtualizada = await this.empresaModel.findByIdAndUpdate(
+      empresaId,
+      {
+        $set: { chavePix: chavePixData },
+        $addToSet: { chavesPixAlternativas: chavePixData.chave }
+      },
+      { new: true }
+    ).exec();
+
+    if (!empresaAtualizada) {
+      throw new NotFoundException('Empresa não encontrada após atualização');
+    }
+
+    return empresaAtualizada;
+  }
+
+  // 🔑 NOVO: Método para buscar empresa por chave PIX
+  async buscarPorChavePix(chave: string): Promise<Empresa | null> {
+    const chaveLimpa = chave.replace(/\D/g, '');
+
+    return this.empresaModel.findOne({
+      $or: [
+        { 'chavePix.chave': chave },
+        { 'chavePix.chave': chaveLimpa },
+        { chavesPixAlternativas: chave },
+        { chavesPixAlternativas: chaveLimpa }
+      ]
+    }).exec();
+  }
+
+  // 🔑 NOVO: Método para obter chave PIX preferencial
+  async obterChavePixPreferencial(empresaId: string): Promise<{ chave: string; tipo: string } | null> {
+    const empresa = await this.findOne(empresaId);
+
+    if (empresa.chavePix?.chave) {
+      return {
+        chave: empresa.chavePix.chave,
+        tipo: empresa.chavePix.tipo
+      };
+    }
+
+    return null;
+  }
+
+  // 🔑 NOVO: Método para adicionar chave PIX alternativa
+  async adicionarChavePixAlternativa(empresaId: string, chave: string): Promise<Empresa> {
+    const empresaAtualizada = await this.empresaModel.findByIdAndUpdate(
+      empresaId,
+      { $addToSet: { chavesPixAlternativas: chave } },
+      { new: true }
+    ).exec();
+
+    if (!empresaAtualizada) {
+      throw new NotFoundException('Empresa não encontrada');
+    }
+
+    return empresaAtualizada;
+  }
+
+  // 🔑 NOVO: Método para remover chave PIX
+  async removerChavePix(empresaId: string): Promise<Empresa> {
+    const empresaAtualizada = await this.empresaModel.findByIdAndUpdate(
+      empresaId,
+      {
+        $unset: { chavePix: '' },
+        $set: { chavesPixAlternativas: [] }
+      },
+      { new: true }
+    ).exec();
+
+    if (!empresaAtualizada) {
+      throw new NotFoundException('Empresa não encontrada');
+    }
+
+    return empresaAtualizada;
+  }
+
 }

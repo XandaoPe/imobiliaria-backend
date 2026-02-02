@@ -1,3 +1,4 @@
+// src/usuario/schemas/usuario.schema.ts (ATUALIZADO)
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { Empresa } from '../../empresa/schemas/empresa.schema';
@@ -16,6 +17,16 @@ export enum NivelUsuario {
     PLENO = 'PLENO',
     SENIOR = 'SENIOR',
     ESPECIAL = 'ESPECIAL',
+}
+
+// Interface para a chave PIX
+export interface ChavePixUsuario {
+    tipo: string;
+    chave: string;
+    validado: boolean;
+    dataValidacao?: string;
+    preferencial: boolean;
+    dataCadastro: string;
 }
 
 @Schema({ timestamps: true })
@@ -71,21 +82,71 @@ export class Usuario {
 
     @Prop({ default: true })
     ativoFinanceiro: boolean;
+
+    // 🔑 NOVO: Campos para chave PIX
+    @Prop({
+        type: {
+            tipo: {
+                type: String,
+                enum: ['CPF', 'CNPJ', 'EMAIL', 'TELEFONE', 'CHAVE_ALEATORIA'],
+                default: null
+            },
+            chave: { type: String, default: null },
+            validado: { type: Boolean, default: false },
+            dataValidacao: {
+                type: String,
+                validate: {
+                    validator: function (v: string) {
+                        if (!v) return true;
+                        return /^\d{4}-\d{2}-\d{2}$/.test(v);
+                    },
+                    message: 'dataValidacao deve estar no formato YYYY-MM-DD'
+                }
+            },
+            preferencial: { type: Boolean, default: false },
+            dataCadastro: {
+                type: String,
+                default: function () {
+                    return new Date().toISOString().split('T')[0];
+                }
+            }
+        },
+        _id: false
+    })
+    chavePix?: ChavePixUsuario;
+
+    @Prop({ type: [String], default: [] })
+    chavesPixAlternativas?: string[];
+
+    @Prop({
+        type: {
+            ultimaTentativaValidacao: String,
+            tentativas: { type: Number, default: 0 },
+            bloqueadoAte: String
+        },
+        _id: false
+    })
+    pixValidacaoStatus?: {
+        ultimaTentativaValidacao?: string;
+        tentativas: number;
+        bloqueadoAte?: string;
+    };
 }
 
 export const UsuarioSchema = SchemaFactory.createForClass(Usuario);
 
+// Índices
 UsuarioSchema.index({ email: 1, empresa: 1 }, { unique: true });
 UsuarioSchema.index({ empresa: 1, perfil: 1, ativoFinanceiro: 1 });
+UsuarioSchema.index({ 'chavePix.chave': 1, empresa: 1 }, { sparse: true });
+UsuarioSchema.index({ 'chavePix.validado': 1 });
 
-// 2. 🖥️ Configuração de Serialização (toJSON)
+// Configuração de Serialização (toJSON)
 UsuarioSchema.set('toJSON', {
     virtuals: true,
     transform: (doc, ret) => {
-        // 'ret' é o objeto que será transformado em JSON
         const transformed = ret as Record<string, any>;
 
-        // Converte o _id para id (string)
         if (transformed._id) {
             transformed.id = transformed._id.toString();
         }
@@ -94,12 +155,12 @@ UsuarioSchema.set('toJSON', {
             transformed.empresa = transformed.empresa.toString();
         }
 
-        // Remove campos sensíveis ou internos antes de enviar ao Front
+        // Remove campos sensíveis
         delete transformed._id;
         delete transformed.__v;
-        delete transformed.senha; // Segurança: nunca envie a senha no JSON
+        delete transformed.senha;
+        delete transformed.pixValidacaoStatus; // Não expor status interno de validação
 
         return transformed;
     },
 });
-

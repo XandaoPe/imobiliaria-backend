@@ -5,12 +5,14 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Usuario, UsuarioSchema } from './schemas/usuario.schema';
 import { UsuarioService } from './usuario.service';
 import { UsuarioController } from './usuario.controller';
+import { SharedModule } from 'src/shared/shared.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Usuario.name, schema: UsuarioSchema }, // O ÚNICO LUGAR ONDE O SCHEMA É DEFINIDO
     ]),
+    SharedModule,
   ],
   controllers: [UsuarioController],
   providers: [UsuarioService],

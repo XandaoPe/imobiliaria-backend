@@ -10,6 +10,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { UsuarioPayload } from 'src/auth/interfaces/usuario-payload.interface';
+import { ChavePixDto, ValidarChavePixDto } from 'src/shared/dto/chave-pix.dto';
 
 export interface RequestWithUser extends Request {
   user: UsuarioPayload;
@@ -109,6 +110,61 @@ export class UsuarioController {
       usuarios: resultado.usuarios,
       mensagem: `Existem ${resultado.total} usuários sem token registrado`
     };
+  }
+
+  @Post(':id/chave-pix')
+  @Roles(...ROLES_ADMIN)
+  @ApiOperation({ summary: 'Adiciona ou atualiza chave PIX do usuário' })
+  async adicionarChavePix(
+    @Param('id') id: string,
+    @Body() chavePixDto: ChavePixDto,
+    @Req() req: RequestWithUser
+  ) {
+    return this.usuarioService.adicionarChavePix(id, chavePixDto, req.user.empresa);
+  }
+
+  // 🔑 NOVO: Remover chave PIX do usuário
+  @Delete(':id/chave-pix')
+  @Roles(...ROLES_ADMIN)
+  @ApiOperation({ summary: 'Remove chave PIX do usuário' })
+  @HttpCode(HttpStatus.OK)
+  async removerChavePix(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser
+  ) {
+    return this.usuarioService.removerChavePix(id, req.user.empresa);
+  }
+
+  // 🔑 NOVO: Validar chave PIX do usuário
+  @Post(':id/validar-chave-pix')
+  @Roles(...ROLES_ADMIN)
+  @ApiOperation({ summary: 'Valida chave PIX do usuário com código de verificação' })
+  async validarChavePix(
+    @Param('id') id: string,
+    @Body() validarDto: ValidarChavePixDto,
+    @Req() req: RequestWithUser
+  ) {
+    return this.usuarioService.validarChavePix(id, validarDto, req.user.empresa);
+  }
+
+  // 🔑 NOVO: Listar usuários com chave PIX válida
+  @Get('com-chave-pix/validada')
+  @Roles(...ROLES_ADMIN)
+  @ApiOperation({ summary: 'Lista todos os usuários com chave PIX validada' })
+  async listarComChavePixValida(@Req() req: RequestWithUser) {
+    return this.usuarioService.listarComChavePixValida(req.user.empresa);
+  }
+
+  // 🔑 NOVO: Verificar se usuário tem chave PIX válida
+  @Get(':id/tem-chave-pix')
+  @Roles(...ROLES_ADMIN)
+  @ApiOperation({ summary: 'Verifica se o usuário possui chave PIX válida cadastrada' })
+  async temChavePixValida(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser
+  ) {
+    const temChave = await this.usuarioService.temChavePixValida(id, req.user.empresa);
+    return { temChavePix: temChave };
   }
 
 }

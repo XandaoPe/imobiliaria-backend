@@ -26,6 +26,8 @@ import { FinanceiroModule } from './financeiro/financeiro.module';
 import { ConfiguracaoModule } from './configuracao/configuracao.module';
 import { TasksModule } from './tasks/tasks.module';
 import { ComissaoModule } from './comissoes/comissao.module';
+import { SharedModule } from './shared/shared.module';
+import { PixModule } from './pix/pix.module';
 
 @Module({
   imports: [
@@ -68,6 +70,8 @@ import { ComissaoModule } from './comissoes/comissao.module';
     FinanceiroModule,
     ConfiguracaoModule,
     ComissaoModule,
+    SharedModule,
+    PixModule,
   ],
   
   controllers: [AppController],

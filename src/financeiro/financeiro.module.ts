@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { FinanceiroController } from './financeiro.controller';
 import { FinanceiroService } from './financeiro.service';
@@ -8,6 +8,7 @@ import { Empresa, EmpresaSchema } from 'src/empresa/schemas/empresa.schema'; // 
 import { Cliente, ClienteSchema } from 'src/cliente/schemas/cliente.schema';
 import { ConfiguracaoModule } from 'src/configuracao/configuracao.module';
 import { Imovel, ImovelSchema } from 'src/imovel/schemas/imovel.schema';
+import { PixModule } from 'src/pix/pix.module';
 
 @Module({
     imports: [
@@ -18,6 +19,7 @@ import { Imovel, ImovelSchema } from 'src/imovel/schemas/imovel.schema';
             { name: Imovel.name, schema: ImovelSchema }, 
         ]),
         ConfiguracaoModule,
+        forwardRef(() => PixModule),
     ],
     controllers: [FinanceiroController],
     providers: [FinanceiroService, FinanceiroPdfService],
