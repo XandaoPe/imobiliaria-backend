@@ -24,6 +24,9 @@ export class TransacaoPix {
     @Prop({ type: Types.ObjectId, ref: 'Usuario' })
     usuarioSolicitante?: Types.ObjectId;
 
+    @Prop({ required: true, enum: ['CPF', 'CNPJ', 'EMAIL', 'TELEFONE', 'CHAVE_ALEATORIA'] })
+    tipoChave: string;
+
     @Prop({ required: true })
     chaveDestinatario: string;
 

@@ -12,6 +12,7 @@ import { FinanceiroService } from 'src/financeiro/financeiro.service';
 
 interface PixData {
     chave: string;
+    tipo: string;
     valor: number;
     nome: string;
     cidade: string;
@@ -44,34 +45,34 @@ export class PixService {
                 throw new BadRequestException('Já existe um QR Code PIX ativo para este lançamento');
             }
 
-            const { chaveDestino, nomeDestinatario } = await this.determinarDestinatario(lancamento, empresaId);
-
+            const destinatario = await this.determinarDestinatario(lancamento, empresaId);
             const valor = dados.valorPersonalizado || lancamento.valor;
             const descricao = dados.descricaoPersonalizada || lancamento.descricao || 'PAGAMENTO';
             const txid = `ID${Date.now().toString().slice(-8)}`;
 
-            // GERADOR NATIVO (Sem dependência de biblioteca problemática)
             const payloadPix = this.gerarPixStringNativa({
-                chave: chaveDestino,
+                chave: destinatario.chaveDestino,
+                tipo: destinatario.tipoChave,
                 valor,
-                nome: nomeDestinatario,
+                nome: destinatario.nomeDestinatario,
                 cidade: await this.obterCidadeEmpresa(empresaId),
                 descricao,
                 txid
             });
 
-            const qrCodeBase64 = await QRCode.toDataURL(payloadPix, { 
-                errorCorrectionLevel: 'M', 
-                margin: 2, 
-                width: 400 
+            const qrCodeBase64 = await QRCode.toDataURL(payloadPix, {
+                errorCorrectionLevel: 'M',
+                margin: 2,
+                width: 400
             });
 
             const transacaoPix = new this.transacaoPixModel({
                 lancamentoFinanceiro: new Types.ObjectId(dados.lancamentoId),
                 empresa: new Types.ObjectId(empresaId),
                 usuarioSolicitante: usuarioId ? new Types.ObjectId(usuarioId) : undefined,
-                chaveDestinatario: chaveDestino,
-                nomeDestinatario,
+                chaveDestinatario: destinatario.chaveDestino,
+                tipoChave: destinatario.tipoChave, // 🔑 Gravando o tipo no banco
+                nomeDestinatario: destinatario.nomeDestinatario,
                 valor,
                 descricao,
                 payloadPix,
@@ -90,23 +91,68 @@ export class PixService {
         }
     }
 
-    /**
-     * Gerador de Payload PIX Nativo (Padrão BACEN)
-     * Baseado no payload válido enviado pelo usuário
-     */
+    async reenviarQrCode(id: string, empresaId: string) {
+        const t = await this.transacaoPixModel.findOne({
+            _id: new Types.ObjectId(id),
+            empresa: new Types.ObjectId(empresaId)
+        });
+
+        if (!t) throw new NotFoundException('Transação não encontrada');
+
+        const payload = this.gerarPixStringNativa({
+            chave: t.chaveDestinatario,
+            tipo: (t as any).tipoChave || 'CHAVE_ALEATORIA', // 🛡️ Cast temporário enquanto o Schema compila
+            valor: t.valor,
+            nome: t.nomeDestinatario,
+            cidade: await this.obterCidadeEmpresa(empresaId),
+            descricao: t.descricao,
+            txid: `RE${Date.now().toString().slice(-8)}`
+        });
+
+        t.payloadPix = payload;
+        t.qrCodeBase64 = await QRCode.toDataURL(payload, { width: 400 });
+        t.status = StatusTransacaoPix.GERADO;
+
+        const salva = await t.save();
+        return this.formatarResposta(salva);
+    }
+
     private gerarPixStringNativa(data: PixData): string {
         const format = (id: string, value: string) => id + value.length.toString().padStart(2, '0') + value;
-        
+
         const sanitizar = (t: string, limit: number) => {
-            return t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9 ]/gi, "").toUpperCase().substring(0, limit).trim();
+            if (!t) return '';
+            return t.normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^A-Z0-9 ]/gi, "")
+                .toUpperCase()
+                .trim()
+                .substring(0, limit);
         };
+
+        // --- TRATAMENTO DE CHAVE ---
+        let chaveFinal = data.chave.trim();
+        const tipo = data.tipo?.toUpperCase();
+
+        if (tipo === 'TELEFONE') {
+            const apenasNumeros = chaveFinal.replace(/\D/g, '');
+            chaveFinal = apenasNumeros.length <= 11 ? `+55${apenasNumeros}` : `+${apenasNumeros}`;
+        } else if (tipo === 'EMAIL') {
+            chaveFinal = chaveFinal.toLowerCase();
+        } else if (tipo === 'CPF' || tipo === 'CNPJ') {
+            chaveFinal = chaveFinal.replace(/\D/g, '');
+        } else if (tipo === 'CHAVE_ALEATORIA') {
+            // 🔑 IMPORTANTE: Chave aleatória (UUID) deve manter os hífens se existirem
+            chaveFinal = chaveFinal.toLowerCase();
+        }
 
         // 00: Payload Format Indicator
         let payload = format('00', '01');
-        
+
         // 26: Merchant Account Information - PIX
-        const gui = format('00', 'br.gov.bcb.pix');
-        const key = format('01', data.chave.includes('@') ? data.chave.toLowerCase().trim() : data.chave.replace(/\D/g, ''));
+        // Mudado para BR.GOV.BCB.PIX em maiúsculo conforme seu exemplo correto
+        const gui = format('00', 'BR.GOV.BCB.PIX');
+        const key = format('01', chaveFinal);
         payload += format('26', gui + key);
 
         // 52: Merchant Category Code
@@ -117,16 +163,20 @@ export class PixService {
         payload += format('54', data.valor.toFixed(2));
         // 58: Country Code
         payload += format('58', 'BR');
-        // 59: Merchant Name
-        payload += format('59', sanitizar(data.nome, 25) || 'IMOBILIARIA');
-        // 60: Merchant City
-        payload += format('60', sanitizar(data.cidade, 15) || 'SAO PAULO');
-        
-        // 62: Additional Data Field (TXID)
-        const txid = format('05', data.txid.substring(0, 25) || '***');
-        payload += format('62', txid);
 
-        // 63: CRC16 (Calculado sobre o payload até aqui + '6304')
+        // No seu código correto, nome (59) e cidade (60) estão como "N" e "C"
+        // Para manter compatibilidade total, vamos usar o sanitizar, 
+        // mas se for vazio, usamos o padrão do seu exemplo.
+        payload += format('59', sanitizar(data.nome, 25) || 'N');
+        payload += format('60', sanitizar(data.cidade, 15) || 'C');
+
+        // 62: Additional Data Field (TXID)
+        // 🔑 AJUSTE TXID: Seu exemplo funcional usa "***" (0503***)
+        const txidValue = data.txid === '***' ? '***' : (data.txid || '***');
+        const txidField = format('05', txidValue);
+        payload += format('62', txidField);
+
+        // 63: CRC16
         payload += '6304';
         payload += this.calcularCRC16(payload);
 
@@ -148,35 +198,38 @@ export class PixService {
         return (result & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
     }
 
-    private async determinarDestinatario(lancamento: any, empresaId: string): Promise<{ chaveDestino: string; nomeDestinatario: string }> {
-        let chave: string | undefined;
+    private async determinarDestinatario(lancamento: any, empresaId: string): Promise<{ chaveDestino: string; nomeDestinatario: string; tipoChave: string }> {
+        let chaveInfo: any;
         let nome: string | undefined;
 
         if (lancamento.categoria === 'COMISSAO' && lancamento.comissionado) {
             const user = await this.usuarioModel.findById(lancamento.comissionado?._id || lancamento.comissionado);
-            chave = user?.chavePix?.chave;
+            chaveInfo = user?.chavePix;
             nome = user?.nome;
         } else if (lancamento.categoria === 'REPASSE' && lancamento.cliente) {
             const cli = await this.clienteModel.findById(lancamento.cliente?._id || lancamento.cliente);
-            chave = cli?.chavePix?.chave;
+            chaveInfo = cli?.chavePix;
             nome = cli?.nome;
         } else {
             const emp = await this.empresaModel.findById(empresaId);
-            chave = emp?.chavePix?.chave;
+            chaveInfo = emp?.chavePix;
             nome = emp?.nome;
         }
 
-        if (!chave || !nome) throw new Error('Destinatário não possui chave PIX configurada.');
-        return { chaveDestino: chave, nomeDestinatario: nome };
+        if (!chaveInfo?.chave || !nome) throw new Error('Destinatário não possui chave PIX configurada.');
+
+        return {
+            chaveDestino: chaveInfo.chave,
+            nomeDestinatario: nome,
+            tipoChave: chaveInfo.tipo || 'CHAVE_ALEATORIA'
+        };
     }
 
     private async obterCidadeEmpresa(empresaId: string): Promise<string> {
         try {
             const empresa = await this.empresaModel.findById(empresaId).lean() as any;
-            return (empresa?.cidade || empresa?.endereco?.cidade || 'SAO PAULO');
-        } catch {
-            return 'SAO PAULO';
-        }
+            return (empresa?.cidade || 'SAO PAULO');
+        } catch { return 'SAO PAULO'; }
     }
 
     private calcularDataExpiracao(dias: number): string {
@@ -195,26 +248,6 @@ export class PixService {
             status: t.status,
             dataExpiracao: t.dataExpiracao
         };
-    }
-
-    // --- Outros métodos permanecem os mesmos ---
-    async reenviarQrCode(id: string, empresaId: string) {
-        const t = await this.transacaoPixModel.findOne({ _id: new Types.ObjectId(id), empresa: new Types.ObjectId(empresaId) });
-        if (!t) throw new NotFoundException('Transação não encontrada');
-        
-        const payload = this.gerarPixStringNativa({
-            chave: t.chaveDestinatario,
-            valor: t.valor,
-            nome: t.nomeDestinatario,
-            cidade: await this.obterCidadeEmpresa(empresaId),
-            descricao: t.descricao,
-            txid: `RE${Date.now().toString().slice(-8)}`
-        });
-
-        t.payloadPix = payload;
-        t.qrCodeBase64 = await QRCode.toDataURL(payload, { width: 400 });
-        const salva = await t.save();
-        return this.formatarResposta(salva);
     }
 
     async obterEstatisticas(empresaId: string) {
