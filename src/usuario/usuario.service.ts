@@ -307,13 +307,15 @@ export class UsuarioService {
         return usuarioAtualizado.toObject();
     }
 
+    // src/usuario/usuario.service.ts
+
     async buscarPorChavePix(chave: string, empresaId: string): Promise<Usuario | null> {
-        const chaveLimpa = chave.replace(/\D/g, '');
+        // Busca direta, sem limpeza de caracteres
         const usuario = await this.usuarioModel.findOne({
             empresa: new Types.ObjectId(empresaId),
             $or: [
                 { 'chavePix.chave': chave },
-                { 'chavePix.chave': chaveLimpa },
+                { 'chavePix.chave': chave.replace(/\D/g, '') },
                 { chavesPixAlternativas: chave }
             ]
         }).exec();

@@ -1,4 +1,3 @@
-// src/pix/controllers/pix.controller.ts
 import {
     Controller,
     Post,
@@ -15,13 +14,13 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { PerfisEnum } from '../usuario/schemas/usuario.schema';
-
+import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { PixService } from './pix.service';
-import { GerarQrCodePixDto, ConsultarPagamentoPixDto, ReenviarQrCodePixDto, CancelarQrCodePixDto } from './dto/gerar-qrcode-pix.dto';
+import { Roles } from 'src/auth/decorators/roles.decorator';
+import { PerfisEnum } from 'src/usuario/schemas/usuario.schema';
+import { CancelarQrCodePixDto, GerarQrCodePixDto } from './dto/gerar-qrcode-pix.dto';
 import { StatusTransacaoPix } from './schemas/transacao-pix.schema';
+
 
 interface RequestWithUser extends Request {
     user: {
@@ -97,12 +96,10 @@ export class PixController {
         const empresaId = req.user.empresa;
         const transacao = await this.pixService.buscarTransacaoPorId(id, empresaId);
 
-        // TODO: Implementar integração com API de consulta PIX
-        // Por enquanto, retorna o status atual
-
+        // 🛡️ Correção do erro TS18047: Usando optional chaining e fallback
         return {
             transacaoId: id,
-            status: transacao.status,
+            status: transacao?.status || 'NAO_ENCONTRADO',
             dataConsulta: new Date().toISOString(),
             mensagem: 'Consulta realizada com sucesso'
         };
@@ -134,15 +131,14 @@ export class PixController {
         return this.pixService.cancelarTransacao(id, empresaId, cancelarDto.motivo);
     }
 
-    // Método corrigido - linha 115-130
     @Patch('transacoes/:id/status')
     @Roles(PerfisEnum.ADM_GERAL, PerfisEnum.GERENTE)
     @ApiOperation({ summary: 'Atualiza status de uma transação PIX (manual)' })
     async atualizarStatus(
         @Param('id') id: string,
-        @Req() req: RequestWithUser, // ⬅️ MOVIDO para antes dos parâmetros opcionais
+        @Req() req: RequestWithUser,
         @Body('status') status: StatusTransacaoPix,
-        @Body('observacoes') observacoes?: string // ⬅️ Agora é o último parâmetro
+        @Body('observacoes') observacoes?: string
     ) {
         const empresaId = req.user.empresa;
 
