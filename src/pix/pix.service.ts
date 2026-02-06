@@ -41,8 +41,13 @@ export class PixService {
                 status: { $in: [StatusTransacaoPix.PENDENTE, StatusTransacaoPix.GERADO] }
             });
 
+            // 1- Aviso visível e 2- Alerta de verificação de pagamento duplicado
             if (transacaoExistente) {
-                throw new BadRequestException('Já existe um QR Code PIX ativo para este lançamento');
+                return {
+                    aviso: 'PAGAMENTO JÁ SOLICITADO ANTERIORMENTE',
+                    alerta: 'Um QR Code para este lançamento já foi gerado. Antes de prosseguir, verifique no extrato do seu banco se o pagamento não foi efetuado para evitar duplicidade.',
+                    ...this.formatarResposta(transacaoExistente)
+                };
             }
 
             const destinatario = await this.determinarDestinatario(lancamento, empresaId);
