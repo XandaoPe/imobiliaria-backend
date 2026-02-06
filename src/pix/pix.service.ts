@@ -31,28 +31,42 @@ export class PixService {
         private financeiroService: FinanceiroService,
     ) { }
 
-    async gerarQrCodePix(dados: GerarQrCodePixDto, empresaId: string, usuarioId?: string): Promise<any> {
+    async gerarQrCodePix(dados: any, empresaId: string, usuarioId?: string): Promise<any> {
         try {
             const lancamento = await this.financeiroService.findById(dados.lancamentoId, empresaId);
             if (!lancamento) throw new NotFoundException('Lançamento financeiro não encontrado');
 
-            const transacaoExistente = await this.transacaoPixModel.findOne({
-                lancamentoFinanceiro: new Types.ObjectId(dados.lancamentoId),
-                status: { $in: [StatusTransacaoPix.PENDENTE, StatusTransacaoPix.GERADO] }
-            });
+            // --- CORREÇÃO AQUI: Verificamos se NÃO é para forçar antes de retornar a existente ---
+            if (!dados.forcarNovo) {
+                const transacaoExistente = await this.transacaoPixModel.findOne({
+                    lancamentoFinanceiro: new Types.ObjectId(dados.lancamentoId),
+                    status: { $in: [StatusTransacaoPix.PENDENTE, StatusTransacaoPix.GERADO] }
+                });
 
-            // 1- Aviso visível e 2- Alerta de verificação de pagamento duplicado
-            if (transacaoExistente) {
-                return {
-                    aviso: 'PAGAMENTO JÁ SOLICITADO ANTERIORMENTE',
-                    alerta: 'Um QR Code para este lançamento já foi gerado. Antes de prosseguir, verifique no extrato do seu banco se o pagamento não foi efetuado para evitar duplicidade.',
-                    ...this.formatarResposta(transacaoExistente)
-                };
+                if (transacaoExistente) {
+                    return {
+                        aviso: 'PAGAMENTO JÁ SOLICITADO ANTERIORMENTE',
+                        alerta: 'Um QR Code para este lançamento já foi gerado. Antes de prosseguir, verifique no extrato do seu banco se o pagamento já não foi efetuado.',
+                        ...this.formatarResposta(transacaoExistente)
+                    };
+                }
+            } else {
+                // Se forçarNovo for true, invalidamos as anteriores para não confundir o financeiro
+                await this.transacaoPixModel.updateMany(
+                    {
+                        lancamentoFinanceiro: new Types.ObjectId(dados.lancamentoId),
+                        status: { $in: [StatusTransacaoPix.PENDENTE, StatusTransacaoPix.GERADO] }
+                    },
+                    { $set: { status: StatusTransacaoPix.CANCELADO, observacoes: 'Substituído por novo QR Code' } }
+                );
             }
 
+            // AGORA BUSCAMOS O DESTINATÁRIO (Isso pegará a chave nova que você alterou no cadastro)
             const destinatario = await this.determinarDestinatario(lancamento, empresaId);
             const valor = dados.valorPersonalizado || lancamento.valor;
             const descricao = dados.descricaoPersonalizada || lancamento.descricao || 'PAGAMENTO';
+
+            // Geramos um TXID novo para garantir que o QR Code mude visualmente
             const txid = `ID${Date.now().toString().slice(-8)}`;
 
             const payloadPix = this.gerarPixStringNativa({
@@ -76,7 +90,7 @@ export class PixService {
                 empresa: new Types.ObjectId(empresaId),
                 usuarioSolicitante: usuarioId ? new Types.ObjectId(usuarioId) : undefined,
                 chaveDestinatario: destinatario.chaveDestino,
-                tipoChave: destinatario.tipoChave, // 🔑 Gravando o tipo no banco
+                tipoChave: destinatario.tipoChave,
                 nomeDestinatario: destinatario.nomeDestinatario,
                 valor,
                 descricao,
@@ -88,6 +102,8 @@ export class PixService {
             });
 
             const transacaoSalva = await transacaoPix.save();
+
+            // Retornamos SEM os campos 'aviso' e 'alerta' pois este é um novo
             return this.formatarResposta(transacaoSalva);
 
         } catch (error) {

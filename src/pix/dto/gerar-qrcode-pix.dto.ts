@@ -27,6 +27,10 @@ export class GerarQrCodePixDto {
     @IsNumber()
     @Min(0.01)
     valorPersonalizado?: number;
+
+    @ApiPropertyOptional({ description: 'Forçar geração de novo QR Code' })
+    @IsOptional()
+    forcarNovo?: boolean;
 }
 
 export class ConsultarPagamentoPixDto {
